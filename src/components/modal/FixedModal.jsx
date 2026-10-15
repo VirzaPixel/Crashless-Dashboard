@@ -1,0 +1,171 @@
+import { useMemo, useEffect, useState } from 'react';
+import { Camera, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Modal } from '../common/Modal';
+import './FixedModal.css';
+
+export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFixed, loading }) {
+  const [files, setFiles] = useState([null, null, null]);
+  const [fixedAt, setFixedAt] = useState(new Date().toISOString().substring(0, 16));
+  const [repairNotes, setRepairNotes] = useState('');
+  const [formError, setFormError] = useState(null);
+  const previewUrls = useMemo(
+    () => files.map((file) => (file ? URL.createObjectURL(file) : null)),
+    [files],
+  );
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [previewUrls]);
+
+  const handleFileChange = (index, e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+
+    if (!selectedFile.type.startsWith('image/')) {
+      setFormError('File dokumentasi harus berupa gambar.');
+      return;
+    }
+
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      setFormError('Ukuran setiap foto maksimal 10 MB.');
+      return;
+    }
+
+    const updatedFiles = [...files];
+    updatedFiles[index] = selectedFile;
+    setFiles(updatedFiles);
+    setFormError(null);
+  };
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+
+    // Validasi 3 file foto wajib
+    if (files.some(file => file === null)) {
+      setFormError('Harap lampirkan minimal 3 foto dokumentasi perbaikan.');
+      return;
+    }
+
+    try {
+      const parsedDate = new Date(fixedAt);
+      if (Number.isNaN(parsedDate.getTime())) {
+        setFormError('Waktu perbaikan tidak valid.');
+        return;
+      }
+
+      const formattedDate = parsedDate.toISOString();
+      await markAsFixed(damageId, {
+        files: files.filter((file) => file !== null),
+        fixedAt: formattedDate,
+        repairNotes,
+      });
+
+      setFiles([null, null, null]);
+      setFixedAt(new Date().toISOString().substring(0, 16));
+      setRepairNotes('');
+
+      await onFixedSuccess();
+      onClose();
+    } catch (err) {
+      setFormError(err.message || 'Terjadi kesalahan saat mengupdate status perbaikan.');
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Laporkan perbaikan">
+      <form onSubmit={handleSubmit} className="fixed-form">
+        <div className="form-description">
+          Unggah tiga foto bukti perbaikan sebelum mengirim laporan.
+        </div>
+
+        {formError && (
+          <div className="form-error-panel">
+            <AlertCircle size={18} />
+            <span>{formError}</span>
+          </div>
+        )}
+
+        <div className="photo-upload-grid">
+          {files.map((file, index) => {
+            const inputId = `repair-photo-${damageId}-${index}`;
+            return (
+              <label
+                key={inputId}
+                className={`photo-uploader-card ${file ? 'has-file' : ''}`}
+                htmlFor={inputId}
+              >
+                <input
+                  id={inputId}
+                  className="photo-input-hidden"
+                  type="file"
+                  onChange={(event) => handleFileChange(index, event)}
+                  accept="image/*"
+                  aria-label={`Pilih foto dokumentasi ${index + 1}`}
+                  disabled={loading}
+                />
+                {file ? (
+                  <span className="preview-container">
+                    <img src={previewUrls[index]} alt={`Dokumentasi ${index + 1}`} />
+                    <span className="change-photo-badge">Ubah foto {index + 1}</span>
+                  </span>
+                ) : (
+                  <span className="upload-placeholder">
+                    <Camera size={25} aria-hidden="true" />
+                    <span>Foto {index + 1}</span>
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="input-group">
+          <label htmlFor="fixed-at-picker">
+            <Calendar size={16} />
+            Waktu Perbaikan Selesai
+          </label>
+          <input 
+            type="datetime-local" 
+            id="fixed-at-picker"
+            value={fixedAt}
+            onChange={(e) => setFixedAt(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="input-group">
+          <label htmlFor="repair-notes">Catatan Perbaikan (opsional)</label>
+          <textarea
+            id="repair-notes"
+            value={repairNotes}
+            onChange={(event) => setRepairNotes(event.target.value)}
+            placeholder="Jelaskan tindakan perbaikan yang dilakukan..."
+            rows={3}
+            disabled={loading}
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          className="submit-fixed-btn" 
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="btn-spinner"></span>
+          ) : (
+            <>
+              <CheckCircle2 size={18} />
+              Kirim Dokumentasi Perbaikan
+            </>
+          )}
+        </button>
+      </form>
+    </Modal>
+  );
+}

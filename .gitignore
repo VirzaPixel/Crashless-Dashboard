@@ -1,0 +1,91 @@
+# Crashless-Web: jangan pernah commit rahasia, kredensial, atau artefak lokal.
+# File contoh (.env.example) boleh dilacak; file env berisi nilai nyata tidak boleh.
+
+# Env dalam bentuk apa pun, di folder mana pun
+.env
+.env.*
+!.env.example
+*.env
+*.env.*
+!*.env.example
+
+# Kredensial, kunci, sertifikat, dan token
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.asc
+*.gpg
+*.age
+*id_rsa*
+*id_ed25519*
+secrets.json
+secrets.yaml
+secrets.yml
+credentials.json
+service-account*.json
+*-service-account.json
+.supabase/
+service_role*.txt
+
+# Konfigurasi otorisasi lokal
+.npmrc
+.yarnrc
+.pnp.*
+
+# Dependensi dan hasil build
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+.nyc_output/
+*.lcov
+.cache/
+.parcel-cache/
+.vite/
+.output/
+.vercel/
+.netlify/
+
+# Log dan database lokal
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.sqlite
+*.sqlite3
+*.db
+
+# OS, editor, dan IDE
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.history/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

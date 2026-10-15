@@ -1,0 +1,216 @@
+.fixed-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-description {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.form-error-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.form-error-panel svg {
+  flex: 0 0 auto;
+}
+
+.photo-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.photo-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.photo-uploader-card:focus-within {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.photo-uploader-card {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1.1 / 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--surface-subtle);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.photo-uploader-card:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.photo-uploader-card.has-file {
+  border-style: solid;
+  border-color: var(--line-strong);
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.photo-uploader-card:hover .upload-placeholder {
+  color: var(--accent-dark);
+}
+
+.preview-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.preview-container img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.change-photo-badge {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  left: 5px;
+  padding: 5px 4px;
+  color: var(--on-solid);
+  background: rgb(10 14 12 / 78%);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.input-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 630;
+}
+
+.input-group input,
+.input-group textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  color: var(--ink);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.input-group input:focus,
+.input-group textarea:focus {
+  border-color: var(--accent);
+}
+
+.input-group textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.submit-fixed-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 1px;
+  padding: 10px 13px;
+  color: var(--on-solid);
+  background: var(--accent-solid);
+  border: 1px solid var(--accent-solid);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 660;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.submit-fixed-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.submit-fixed-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.submit-fixed-btn:disabled {
+  opacity: 0.66;
+}
+
+.btn-spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid var(--spinner-track);
+  border-top-color: var(--on-solid);
+  border-radius: 50%;
+  animation: fixed-spin 700ms linear infinite;
+}
+
+@keyframes fixed-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 420px) {
+  .photo-upload-grid {
+    gap: 6px;
+  }
+
+  .upload-placeholder {
+    gap: 5px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-uploader-card,
+  .submit-fixed-btn {
+    transition: none;
+  }
+
+  .btn-spinner {
+    animation-duration: 1.8s;
+  }
+}
