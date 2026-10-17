@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Percent, MapPin, Clock3 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { id as localeId } from 'date-fns/locale';
+import { id as localeId, enUS as localeEn } from 'date-fns/locale';
 import { reverseGeocode } from '../../lib/geocoding';
+import { useLanguage } from '../common/language';
 import {
   getDamageTypeLabel,
   getPriorityLabel,
@@ -18,7 +19,8 @@ const WORKFLOW_STEPS = ['pending', 'in_progress', 'fixed', 'verified'];
 
 export function DamageCard({ damage }) {
   const navigate = useNavigate();
-  const [address, setAddress] = useState('Mengambil lokasi...');
+  const { lang, t } = useLanguage();
+  const [address, setAddress] = useState(t('loadingLocation'));
 
   useEffect(() => {
     let isMounted = true;
@@ -38,17 +40,15 @@ export function DamageCard({ damage }) {
 
   const getConfidenceColor = (score) => {
     if (!Number.isFinite(score)) return 'var(--muted)';
-    if (score >= 0.8) return 'var(--success)';
-    if (score >= 0.6) return 'var(--warning)';
-    return 'var(--danger)';
+    return 'var(--muted-strong)';
   };
 
   const createdAt = new Date(damage.created_at);
   const timeAgo = Number.isNaN(createdAt.getTime())
-    ? 'Waktu tidak tersedia'
+    ? t('noTime')
     : formatDistanceToNow(createdAt, {
         addSuffix: true,
-        locale: localeId,
+        locale: lang === 'en' ? localeEn : localeId,
       });
 
   const handleOpen = () => navigate(`/damage/${damage.id}`);
@@ -66,6 +66,11 @@ export function DamageCard({ damage }) {
       ? Math.round(((stepIndex + 1) / WORKFLOW_STEPS.length) * 100)
       : 0;
   const overdue = isOverdue(damage);
+  const damageTypeLabel = getDamageTypeLabel(damage.damage_type, lang);
+  const workflowStatusLabel = getWorkflowStatusLabel(damage.workflow_status, lang);
+  const priorityLabel = getPriorityLabel(damage.priority, lang);
+
+  const isNoDamage = damage.damage_type === 'no_damage';
 
   return (
     <div
@@ -74,22 +79,24 @@ export function DamageCard({ damage }) {
       tabIndex={0}
       onClick={handleOpen}
       onKeyDown={handleKeyDown}
-      aria-label={`${getDamageTypeLabel(damage.damage_type)} — ${getWorkflowStatusLabel(damage.workflow_status)}`}
+      aria-label={isNoDamage ? damageTypeLabel : `${damageTypeLabel} — ${workflowStatusLabel}`}
     >
       <div className="card-image-wrapper">
         <img
           src={damage.image_url}
-          alt={getDamageTypeLabel(damage.damage_type)}
+          alt={damageTypeLabel}
           loading="lazy"
         />
-        <span className={`status-badge ${damage.workflow_status}`}>
-          {damage.workflow_status === 'verified' ? '⚑ ' : ''}
-          {getWorkflowStatusLabel(damage.workflow_status)}
-        </span>
-        {overdue && (
+        {!isNoDamage && (
+          <span className={`status-badge ${damage.workflow_status}`}>
+            {damage.workflow_status === 'verified' ? '⚑ ' : ''}
+            {workflowStatusLabel}
+          </span>
+        )}
+        {!isNoDamage && overdue && (
           <span className="overdue-ribbon">
             <Clock3 size={12} />
-            <span>Melewati Batas Waktu</span>
+            <span>{t('overdueBadge')}</span>
           </span>
         )}
       </div>
@@ -97,32 +104,36 @@ export function DamageCard({ damage }) {
       <div className="card-info">
         <div className="card-header">
           <span className={`type-badge ${damage.damage_type}`}>
-            {damage.damage_type === 'no_damage' ? '✓ ' : ''}{getDamageTypeLabel(damage.damage_type)}
+            {isNoDamage ? '✓ ' : ''}{damageTypeLabel}
           </span>
           <div className="card-meta-badges">
-            <span className={`priority-badge ${damage.priority}`}>
-              {getPriorityLabel(damage.priority)}
-            </span>
+            {!isNoDamage && (
+              <span className={`priority-badge ${damage.priority}`}>
+                {priorityLabel}
+              </span>
+            )}
             <div className="confidence-score">
               <Percent size={14} />
               <span style={{ color: getConfidenceColor(damage.confidence_score) }}>
-                {damage.damage_type === 'no_damage'
-                  ? 'Tanpa Kerusakan'
-                  : (formatConfidenceScore(damage) ?? 'Akurasi tidak tersedia')}
+                {isNoDamage
+                  ? t('noDamageText')
+                  : (formatConfidenceScore(damage) ?? t('noScoreText'))}
               </span>
             </div>
           </div>
 
         </div>
-        <div className="card-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progres penanganan">
-          <span className={`card-progress-bar ${damage.workflow_status}`} style={{ width: `${progress}%` }} />
-        </div>
+        {!isNoDamage && (
+          <div className="card-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progress">
+            <span className={`card-progress-bar ${damage.workflow_status}`} style={{ width: `${progress}%` }} />
+          </div>
+        )}
         <div className="info-row location-row">
           <MapPin size={16} className="info-icon" />
           <span className="info-text">
             {hasValidCoordinates(damage)
               ? address
-              : damage.address || 'Lokasi tidak tersedia'}
+              : damage.address || t('noLocation')}
           </span>
         </div>
 

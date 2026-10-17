@@ -49,7 +49,7 @@ export function getPrimaryDetection(damage) {
 export function getDamageType(damage) {
   if (hasNoDamage(damage)) return 'no_damage';
 
-  if (SUPPORTED_TYPES.has(damage?.damage_type)) {
+  if (SUPPORTED_TYPES.has(damage?.damage_type) && damage?.damage_type !== 'unknown') {
     return damage.damage_type;
   }
 
@@ -61,17 +61,26 @@ export function getDamageType(damage) {
   if (potholes > 0 && potholes >= cracks) return 'pothole';
   if (cracks > 0) return 'crack';
 
-  return 'unknown';
+  return 'no_damage';
 }
 
-export function getDamageTypeLabel(type) {
-  return DAMAGE_LABELS[type] ?? 'Kerusakan Jalan';
+export function getDamageTypeLabel(type, lang = 'id') {
+  if (lang === 'en') {
+    const enLabels = {
+      pothole: 'Pothole',
+      crack: 'Road Crack',
+      manhole: 'Manhole',
+      no_damage: 'No Damage',
+    };
+    return enLabels[type] ?? 'No Damage';
+  }
+  return DAMAGE_LABELS[type] ?? 'Tidak Ada Kerusakan';
 }
 
 export function formatConfidenceScore(damage) {
   if (hasNoDamage(damage)) return null;
   const score = getConfidenceScore(damage);
-  if (!Number.isFinite(score)) return null;
+  if (!Number.isFinite(score) || score <= 0) return null;
   return `${(score * 100).toFixed(0)}%`;
 }
 
@@ -88,33 +97,24 @@ export function getConfidenceScore(damage) {
     if (Number.isFinite(primaryScore)) return primaryScore;
   }
 
-  // Tidak ada info AI sama sekali → null (bukan 0!) agar tidak
-  // disalahartikan sebagai "tidak ada kerusakan".
   return null;
 }
 
 export function hasNoDamage(damage) {
-  // Hanya "tidak ada kerusakan" bila AI EKSPILISIT memberi skor 0 —
-  // via confidence_score, deteksi primer, atau daftar deteksi.
-  // Data tanpa info AI sama sekali (null/tanpa deteksi) = bukan no_damage,
-  // supaya laporan lama tetap tampil normal.
-  const rawScore = damage?.confidence_score;
-  if (rawScore !== null && rawScore !== undefined && rawScore !== '') {
-    const explicitScore = Number(rawScore);
-    if (Number.isFinite(explicitScore)) return explicitScore <= 0;
-  }
-
-  const detections = getDamageDetections(damage);
-  const realDetections = detections.filter((detection) =>
-    REAL_DAMAGE_TYPES.has(detection?.label),
-  );
-  if (realDetections.length > 0) {
-    return !realDetections.some(
-      (detection) => Number(detection?.confidence) > 0,
+  // Jika skor keyakinan AI 0% atau tidak tersedia / null, klasifikasi adalah no_damage
+  const score = getConfidenceScore(damage);
+  if (score === null || !Number.isFinite(score) || score <= 0) {
+    // Cek juga deteksi apakah ada deteksi nyata dengan confidence > 0
+    const detections = getDamageDetections(damage);
+    const realDetections = detections.filter((detection) =>
+      REAL_DAMAGE_TYPES.has(detection?.label) && Number(detection?.confidence) > 0,
     );
+    if (realDetections.length === 0) {
+      return true;
+    }
   }
 
-  return false;
+  return damage?.damage_type === 'no_damage';
 }
 
 export function normalizeWorkflowStatus(damage) {
@@ -127,7 +127,17 @@ export function normalizeWorkflowStatus(damage) {
   return 'pending';
 }
 
-export function getWorkflowStatusLabel(status) {
+export function getWorkflowStatusLabel(status, lang = 'id') {
+  if (lang === 'en') {
+    const enStatuses = {
+      pending: 'Pending',
+      in_progress: 'In Progress',
+      fixed: 'Awaiting Verification',
+      verified: 'Verified',
+      rejected: 'Rejected',
+    };
+    return enStatuses[status] ?? 'Unknown Status';
+  }
   return WORKFLOW_LABELS[status] ?? 'Status Tidak Diketahui';
 }
 
@@ -141,7 +151,16 @@ export function getPriority(damage) {
   return 'low';
 }
 
-export function getPriorityLabel(priority) {
+export function getPriorityLabel(priority, lang = 'id') {
+  if (lang === 'en') {
+    const enPriorities = {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      critical: 'Critical',
+    };
+    return enPriorities[priority] ?? 'Low';
+  }
   return PRIORITY_LABELS[priority] ?? 'Rendah';
 }
 

@@ -7,6 +7,8 @@ import { DamageCard } from '../components/dashboard/DamageCard';
 import { ClusterLayer } from '../components/dashboard/GlobalMap';
 import { MAP_LEGEND } from '../components/dashboard/mapLegend';
 import { AnalyticsCharts } from '../components/dashboard/AnalyticsCharts';
+import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
+import { useLanguage } from '../components/common/language';
 import { supabase } from '../lib/supabase';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -34,6 +36,7 @@ function compareDamages(a, b) {
 
 export function Dashboard() {
   const { damages, loading, error, fetchDamages } = useRoadDamages();
+  const { lang, t } = useLanguage();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -54,24 +57,29 @@ export function Dashboard() {
           fetchDamages();
 
           if (payload.eventType === 'INSERT') {
-            const typeLabel = getDamageTypeLabel(getDamageType(payload.new));
+            const typeLabel = getDamageTypeLabel(getDamageType(payload.new), lang);
             const workflowLabel = getWorkflowStatusLabel(
               payload.new.workflow_status || 'pending',
+              lang,
             );
-            toast.success(`Laporan ${typeLabel} masuk: ${workflowLabel}.`, {
-              icon: '🚨',
-              duration: 5000,
-            });
+            toast.success(
+              lang === 'en'
+                ? `Report ${typeLabel} received: ${workflowLabel}.`
+                : `Laporan ${typeLabel} masuk: ${workflowLabel}.`,
+              {
+                duration: 5000,
+              },
+            );
           } else if (
             payload.eventType === 'UPDATE' &&
             payload.old?.workflow_status !== payload.new?.workflow_status
           ) {
-            const typeLabel = getDamageTypeLabel(getDamageType(payload.new));
+            const typeLabel = getDamageTypeLabel(getDamageType(payload.new), lang);
             const workflowLabel = getWorkflowStatusLabel(
               payload.new.workflow_status,
+              lang,
             );
             toast.success(`${typeLabel}: ${workflowLabel}.`, {
-              icon: payload.new.workflow_status === 'verified' ? '✅' : '🔄',
               duration: 4000,
             });
           }
@@ -84,7 +92,7 @@ export function Dashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchDamages]);
+  }, [fetchDamages, lang]);
 
   const filteredDamages = damages
     .filter((item) => {
@@ -146,24 +154,28 @@ export function Dashboard() {
           </span>
           <div>
             <p className="brand-overline">Crashless</p>
-            <h1>Dashboard Operasional</h1>
+            <h1>{t('dashboardTitle')}</h1>
           </div>
         </div>
         <div className="header-actions">
-          <div className={`realtime-badge ${realtimeActive ? 'active' : ''}`}>
+          <div className={`realtime-badge ${realtimeActive ? 'active' : ''}`} title={realtimeActive ? t('realtimeActive') : t('realtimeConnecting')}>
             <span className="realtime-indicator" aria-hidden="true" />
-            <span>{realtimeActive ? 'Sinkronisasi Aktif' : 'Menghubungkan...'}</span>
           </div>
 
           <button
-            className="refresh-btn"
+            className="header-icon-btn refresh-icon-btn"
             onClick={fetchDamages}
             disabled={loading}
-            aria-label="Perbarui data laporan"
+            aria-label={t('refresh')}
+            title={t('refresh')}
           >
             <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-            <span>Perbarui</span>
           </button>
+
+          <div className="header-controls">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -179,7 +191,7 @@ export function Dashboard() {
 
       <StatsPanel damages={damages} />
 
-      <nav className="view-tabs" aria-label="Tampilan laporan">
+      <nav className="view-tabs" aria-label={t('dashboardTitle')}>
         <button
           type="button"
           className={`view-tab ${view === 'list' ? 'active' : ''}`}
@@ -187,7 +199,7 @@ export function Dashboard() {
           aria-pressed={view === 'list'}
         >
           <LayoutGrid size={16} />
-          <span>Daftar</span>
+          <span>{t('tabList')}</span>
         </button>
         <button
           type="button"
@@ -196,7 +208,7 @@ export function Dashboard() {
           aria-pressed={view === 'map'}
         >
           <MapIcon size={16} />
-          <span>Peta</span>
+          <span>{t('tabMap')}</span>
         </button>
         <button
           type="button"
@@ -205,7 +217,7 @@ export function Dashboard() {
           aria-pressed={view === 'analytics'}
         >
           <BarChart3 size={16} />
-          <span>Analitik</span>
+          <span>{t('tabAnalytics')}</span>
         </button>
       </nav>
 
@@ -231,25 +243,27 @@ export function Dashboard() {
             {MAP_LEGEND.map((item) => (
               <li key={item.status}>
                 <span className="legend-dot" style={{ background: item.color }} aria-hidden="true" />
-                <span>{item.label}</span>
+                <span>{getWorkflowStatusLabel(item.status, lang)}</span>
               </li>
             ))}
           </ul>
           <p className="map-hint">
-            Menampilkan {filteredDamages.filter((d) => Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))).length} dari {filteredDamages.length} lokasi laporan sesuai filter.
+            {t('mapHint')
+              .replace('{count}', filteredDamages.filter((d) => Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))).length)
+              .replace('{total}', filteredDamages.length)}
           </p>
         </section>
       )}
 
       {view === 'list' && (
-      <section className="worklist-section" aria-label="Daftar laporan">
+      <section className="worklist-section" aria-label={t('tabList')}>
         <div className="filter-section">
           <label className="search-bar">
             <Search size={18} className="search-icon" aria-hidden="true" />
             <input
               type="search"
-              placeholder="Cari ID, alamat, atau status..."
-              aria-label="Cari laporan"
+              placeholder={t('searchPlaceholder')}
+              aria-label={t('searchAria')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -258,51 +272,51 @@ export function Dashboard() {
           <div className="filter-controls">
             <span className="filter-group">
               <SlidersHorizontal size={15} aria-hidden="true" />
-              <span>Filter</span>
+              <span>{t('filterLabel')}</span>
             </span>
             <select
               value={filterType}
               onChange={(event) => setFilterType(event.target.value)}
               className="filter-select"
-              aria-label="Filter jenis kerusakan"
+              aria-label={t('filterLabel')}
             >
-              <option value="all">Semua Jenis</option>
-              <option value="pothole">Lubang Jalan</option>
-              <option value="crack">Retakan</option>
-              <option value="manhole">Manhole</option>
-              <option value="no_damage">Tanpa Kerusakan</option>
+              <option value="all">{t('filterAllTypes')}</option>
+              <option value="pothole">{t('typePothole')}</option>
+              <option value="crack">{t('typeCrack')}</option>
+              <option value="manhole">{t('typeManhole')}</option>
+              <option value="no_damage">{t('typeNoDamage')}</option>
             </select>
             <select
               value={filterStatus}
               onChange={(event) => setFilterStatus(event.target.value)}
               className="filter-select"
-              aria-label="Filter status penanganan"
+              aria-label={t('filterLabel')}
             >
-              <option value="all">Semua Status</option>
-              <option value="pending">Menunggu</option>
-              <option value="in_progress">Sedang Ditangani</option>
-              <option value="fixed">Menunggu Verifikasi</option>
-              <option value="verified">Terverifikasi</option>
-              <option value="rejected">Ditolak</option>
+              <option value="all">{t('filterAllStatuses')}</option>
+              <option value="pending">{t('statusPending')}</option>
+              <option value="in_progress">{t('statusInProgress')}</option>
+              <option value="fixed">{t('statusFixed')}</option>
+              <option value="verified">{t('statusVerified')}</option>
+              <option value="rejected">{t('statusRejected')}</option>
             </select>
             <select
               value={filterPriority}
               onChange={(event) => setFilterPriority(event.target.value)}
               className="filter-select"
-              aria-label="Filter prioritas"
+              aria-label={t('filterLabel')}
             >
-              <option value="all">Semua Prioritas</option>
-              <option value="critical">Kritis</option>
-              <option value="high">Tinggi</option>
-              <option value="medium">Sedang</option>
-              <option value="low">Rendah</option>
+              <option value="all">{t('filterAllPriorities')}</option>
+              <option value="critical">{t('priorityCritical')}</option>
+              <option value="high">{t('priorityHigh')}</option>
+              <option value="medium">{t('priorityMedium')}</option>
+              <option value="low">{t('priorityLow')}</option>
             </select>
           </div>
         </div>
 
         <main className="dashboard-main">
           {loading && damages.length === 0 ? (
-            <div className="cards-grid" aria-label="Memuat laporan" aria-busy="true">
+            <div className="cards-grid" aria-label="Loading" aria-busy="true">
               {[1, 2, 3, 4].map((number) => (
                 <div key={number} className="card-skeleton" />
               ))}
@@ -312,15 +326,15 @@ export function Dashboard() {
               <span className="empty-state-icon" aria-hidden="true">
                 {hasActiveFilters ? <Search size={20} /> : <MapPinned size={20} />}
               </span>
-              <h3>{hasActiveFilters ? 'Laporan Tidak Ditemukan' : 'Tidak Ada Laporan'}</h3>
+              <h3>{hasActiveFilters ? t('emptyMatchedTitle') : t('emptyTitle')}</h3>
               <p>
                 {hasActiveFilters
-                  ? 'Sesuaikan kata kunci pencarian atau filter yang dipilih.'
-                  : 'Belum ada data laporan yang tercatat dalam sistem.'}
+                  ? t('emptyMatchedDesc')
+                  : t('emptyDesc')}
               </p>
               {hasActiveFilters && (
                 <button className="clear-filters-btn" onClick={clearFilters}>
-                  Reset Filter
+                  {t('resetFilter')}
                   <ArrowUpRight size={15} aria-hidden="true" />
                 </button>
               )}

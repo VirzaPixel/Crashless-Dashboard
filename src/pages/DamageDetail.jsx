@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useRoadDamages } from '../hooks/useRoadDamages';
 import { reverseGeocode } from '../lib/geocoding';
+import { useLanguage } from '../components/common/language';
+import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
 import {
   getDamageTypeLabel,
   getPriorityLabel,
@@ -92,6 +94,7 @@ function VerificationPanel({ onVerify, loading }) {
 export function DamageDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { lang, t } = useLanguage();
   const {
     fetchDamageById,
     startRepair,
@@ -102,7 +105,7 @@ export function DamageDetail() {
   } = useRoadDamages();
 
   const [damage, setDamage] = useState(null);
-  const [address, setAddress] = useState('Mengambil lokasi...');
+  const [address, setAddress] = useState(t('loadingLocation'));
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const requestRef = useRef(0);
@@ -111,7 +114,7 @@ export function DamageDetail() {
     const requestId = ++requestRef.current;
     setLoading(true);
     setDamage(null);
-    setAddress('Mengambil lokasi...');
+    setAddress(t('loadingLocation'));
 
     const data = await fetchDamageById(id);
     if (requestId !== requestRef.current) return;
@@ -134,7 +137,7 @@ export function DamageDetail() {
     if (requestId === requestRef.current) {
       setLoading(false);
     }
-  }, [fetchDamageById, id]);
+  }, [fetchDamageById, id, t]);
 
   useEffect(() => {
     // Fetching synchronizes the page with the external Supabase record.
@@ -194,10 +197,16 @@ export function DamageDetail() {
   return (
     <div className="detail-container">
       <Toaster position="top-right" />
-      <button className="back-btn" onClick={() => navigate('/')}>
-        <ArrowLeft size={16} />
-        <span>Kembali ke Dashboard</span>
-      </button>
+      <div className="detail-top-bar">
+        <button className="back-btn" onClick={() => navigate('/')}>
+          <ArrowLeft size={16} />
+          <span>{t('backToDashboard')}</span>
+        </button>
+        <div className="header-controls">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
+      </div>
 
       <div className="detail-layout">
         <section className="detail-map-section">
@@ -213,7 +222,7 @@ export function DamageDetail() {
               />
               <Marker position={[Number(damage.latitude), Number(damage.longitude)]}>
                 <Popup>
-                  <strong>{getDamageTypeLabel(damage.damage_type)}</strong>
+                  <strong>{getDamageTypeLabel(damage.damage_type, lang)}</strong>
                   <br />
                   {address}
                 </Popup>
@@ -222,7 +231,7 @@ export function DamageDetail() {
           ) : (
             <div className="map-unavailable">
               <MapPin size={28} />
-              <p>Koordinat lokasi tidak tersedia.</p>
+              <p>{t('noLocation')}</p>
             </div>
           )}
         </section>
@@ -230,94 +239,98 @@ export function DamageDetail() {
         <section className="detail-info-section">
           <div className="info-header">
             <span className={`type-badge ${damage.damage_type}`}>
-              {getDamageTypeLabel(damage.damage_type)}
+              {getDamageTypeLabel(damage.damage_type, lang)}
             </span>
-            <span className={`status-badge ${workflowStatus}`}>
-              {getWorkflowStatusLabel(workflowStatus)}
-            </span>
+            {damage.damage_type !== 'no_damage' && (
+              <span className={`status-badge ${workflowStatus}`}>
+                {getWorkflowStatusLabel(workflowStatus, lang)}
+              </span>
+            )}
           </div>
 
-          <div className="workflow-summary">
-            <div>
-              <span className="detail-label">Prioritas</span>
-              <strong className={`priority-value ${damage.priority}`}>
-                {getPriorityLabel(damage.priority)}
-              </strong>
+          {damage.damage_type !== 'no_damage' && (
+            <div className="workflow-summary">
+              <div>
+                <span className="detail-label">{t('priorityLabel')}</span>
+                <strong className={`priority-value ${damage.priority}`}>
+                  {getPriorityLabel(damage.priority, lang)}
+                </strong>
+              </div>
+              <div>
+                <span className="detail-label">{t('dueAtLabel')}</span>
+                <strong>{formatDate(damage.due_at, t('notSet'))}</strong>
+              </div>
             </div>
-            <div>
-              <span className="detail-label">Batas Penanganan</span>
-              <strong>{formatDate(damage.due_at, 'Belum ditentukan')}</strong>
-            </div>
-          </div>
+          )}
 
           <div className="info-image-container">
-            <img src={damage.image_url} alt="Foto Kerusakan" />
+            <img src={damage.image_url} alt={t('photoDamage')} />
           </div>
 
           <div className="info-details-list">
             <div className="info-detail-item">
               <div className="detail-icon"><MapPin size={18} /></div>
               <div className="detail-text">
-                <span className="detail-label">Alamat / Lokasi</span>
+                <span className="detail-label">{lang === 'en' ? 'Address / Location' : 'Alamat / Lokasi'}</span>
                 <span className="detail-val">{address}</span>
               </div>
             </div>
             <div className="info-detail-item">
               <div className="detail-icon"><Calendar size={18} /></div>
               <div className="detail-text">
-                <span className="detail-label">Waktu Dilaporkan</span>
+                <span className="detail-label">{lang === 'en' ? 'Reported Time' : 'Waktu Dilaporkan'}</span>
                 <span className="detail-val">{formatDate(damage.created_at)}</span>
               </div>
             </div>
             <div className="info-detail-item">
               <div className="detail-icon"><Percent size={18} /></div>
               <div className="detail-text">
-                <span className="detail-label">Tingkat Keyakinan AI</span>
+                <span className="detail-label">{lang === 'en' ? 'AI Confidence' : 'Tingkat Keyakinan AI'}</span>
                 <span className="detail-val">
                   {damage.damage_type === 'no_damage'
-                    ? 'Tidak ada kerusakan terdeteksi'
-                    : (formatConfidenceScore(damage)
-                      ? `${(damage.confidence_score * 100).toFixed(1)}%`
-                      : 'Skor tidak tersedia')}
+                    ? t('noDamageText')
+                    : (formatConfidenceScore(damage) ?? t('noScoreText'))}
                 </span>
               </div>
             </div>
             <div className="info-detail-item">
               <div className="detail-icon"><Clock size={18} /></div>
               <div className="detail-text">
-                <span className="detail-label">Koordinat</span>
+                <span className="detail-label">{lang === 'en' ? 'Coordinates' : 'Koordinat'}</span>
                 <span className="detail-val">
                   {coordinatesAvailable
                     ? `${Number(damage.latitude).toFixed(6)}, ${Number(damage.longitude).toFixed(6)}`
-                    : 'Koordinat tidak tersedia'}
+                    : t('noLocation')}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="workflow-timeline">
-            {[
-              ['pending', 'Pending'],
-              ['in_progress', 'Ditangani'],
-              ['fixed', 'Bukti'],
-              ['verified', 'Verifikasi'],
-            ].map(([step, label], index) => (
-              <div
-                key={step}
-                className={`timeline-step ${
-                  ['pending', 'in_progress', 'fixed', 'verified', 'rejected']
-                    .indexOf(workflowStatus) >= index ? 'done' : ''
-                }`}
-              >
-                <span>{index + 1}</span>
-                <strong>{label}</strong>
-              </div>
-            ))}
-          </div>
+          {damage.damage_type !== 'no_damage' && (
+            <div className="workflow-timeline">
+              {[
+                ['pending', lang === 'en' ? 'Pending' : 'Pending'],
+                ['in_progress', lang === 'en' ? 'In Progress' : 'Ditangani'],
+                ['fixed', lang === 'en' ? 'Proof' : 'Bukti'],
+                ['verified', lang === 'en' ? 'Verified' : 'Verifikasi'],
+              ].map(([step, label], index) => (
+                <div
+                  key={step}
+                  className={`timeline-step ${
+                    ['pending', 'in_progress', 'fixed', 'verified', 'rejected']
+                      .indexOf(workflowStatus) >= index ? 'done' : ''
+                  }`}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{label}</strong>
+                </div>
+              ))}
+            </div>
+          )}
 
           {fixedPhotoUrls.length > 0 && (
             <div className="fixed-proof-section">
-              <h3>Dokumentasi Perbaikan</h3>
+              <h3>{t('photoRepair')}</h3>
               <div className="fixed-photos-grid">
                 {fixedPhotoUrls.map((url, index) => (
                   <div className="fixed-photo-wrapper" key={url}>
@@ -326,7 +339,7 @@ export function DamageDetail() {
                 ))}
               </div>
               <div className="fixed-time-label">
-                Diperbaiki pada: {formatDate(damage.fixed_at)}
+                {lang === 'en' ? 'Repaired at:' : 'Diperbaiki pada:'} {formatDate(damage.fixed_at)}
               </div>
             </div>
           )}
@@ -334,39 +347,48 @@ export function DamageDetail() {
           {(damage.repair_notes || damage.verification_notes) && (
             <div className="notes-section">
               {damage.repair_notes && (
-                <div><strong>Catatan Perbaikan</strong><p>{damage.repair_notes}</p></div>
+                <div><strong>{lang === 'en' ? 'Repair Notes' : 'Catatan Perbaikan'}</strong><p>{damage.repair_notes}</p></div>
               )}
               {damage.verification_notes && (
-                <div><strong>Catatan Verifikasi</strong><p>{damage.verification_notes}</p></div>
+                <div><strong>{lang === 'en' ? 'Verification Notes' : 'Catatan Verifikasi'}</strong><p>{damage.verification_notes}</p></div>
               )}
             </div>
           )}
 
-          {workflowStatus === 'pending' && (
-            <button className="mark-fixed-action-btn" onClick={handleStartRepair} disabled={actionLoading}>
-              <Play size={18} />
-              <span>{actionLoading ? 'Memproses...' : 'Mulai Tangani'}</span>
-            </button>
-          )}
-          {workflowStatus === 'in_progress' && (
-            <button className="mark-fixed-action-btn" onClick={() => setIsModalOpen(true)} disabled={actionLoading}>
-              <CheckCircle size={18} />
-              <span>Laporkan Perbaikan</span>
-            </button>
-          )}
-          {workflowStatus === 'fixed' && (
-            <VerificationPanel onVerify={handleVerify} loading={actionLoading} />
-          )}
-          {workflowStatus === 'verified' && (
-            <div className="decision-panel verified"><ShieldCheck size={20} /> Perbaikan telah diverifikasi.</div>
-          )}
-          {workflowStatus === 'rejected' && (
+          {damage.damage_type === 'no_damage' ? (
+            <div className="decision-panel no-damage-panel">
+              <ShieldCheck size={20} />
+              <span>{t('noDamageNotice')}</span>
+            </div>
+          ) : (
             <>
-              <div className="decision-panel rejected"><XCircle size={20} /> Perbaikan ditolak; laporan siap ditangani ulang.</div>
-              <button className="mark-fixed-action-btn" onClick={handleStartRepair} disabled={actionLoading}>
-                <Play size={18} />
-                <span>{actionLoading ? 'Memproses...' : 'Tangani Ulang'}</span>
-              </button>
+              {workflowStatus === 'pending' && (
+                <button className="mark-fixed-action-btn" onClick={handleStartRepair} disabled={actionLoading}>
+                  <Play size={18} />
+                  <span>{actionLoading ? t('processing') : t('startRepairAction')}</span>
+                </button>
+              )}
+              {workflowStatus === 'in_progress' && (
+                <button className="mark-fixed-action-btn" onClick={() => setIsModalOpen(true)} disabled={actionLoading}>
+                  <CheckCircle size={18} />
+                  <span>{lang === 'en' ? 'Submit Repair Proof' : 'Laporkan Perbaikan'}</span>
+                </button>
+              )}
+              {workflowStatus === 'fixed' && (
+                <VerificationPanel onVerify={handleVerify} loading={actionLoading} />
+              )}
+              {workflowStatus === 'verified' && (
+                <div className="decision-panel verified"><ShieldCheck size={20} /> {lang === 'en' ? 'Repair verified and approved.' : 'Perbaikan telah diverifikasi.'}</div>
+              )}
+              {workflowStatus === 'rejected' && (
+                <>
+                  <div className="decision-panel rejected"><XCircle size={20} /> {lang === 'en' ? 'Repair rejected; report needs to be reworked.' : 'Perbaikan ditolak; laporan siap ditangani ulang.'}</div>
+                  <button className="mark-fixed-action-btn" onClick={handleStartRepair} disabled={actionLoading}>
+                    <Play size={18} />
+                    <span>{actionLoading ? t('processing') : t('reworkAction')}</span>
+                  </button>
+                </>
+              )}
             </>
           )}
         </section>

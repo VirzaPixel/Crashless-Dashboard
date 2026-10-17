@@ -1,8 +1,10 @@
 import { BarChart3, AlertTriangle, CheckCircle, TrendingUp, Clock3, ShieldCheck } from 'lucide-react';
 import { isOverdue } from '../../lib/roadDamage';
+import { useLanguage } from '../common/language';
 import './StatsPanel.css';
 
 export function StatsPanel({ damages }) {
+  const { t } = useLanguage();
   const total = damages.length;
   const fixed = damages.filter((damage) =>
     ['fixed', 'verified'].includes(damage.workflow_status),
@@ -17,12 +19,12 @@ export function StatsPanel({ damages }) {
   const completionRate = total > 0 ? ((fixed / total) * 100).toFixed(0) : 0;
 
   const stats = [
-    { title: 'Total Laporan', value: total, icon: BarChart3, tone: 'accent' },
-    { title: 'Dalam Proses', value: pending, icon: AlertTriangle, tone: 'warning' },
-    { title: 'Selesai', value: fixed, icon: CheckCircle, tone: 'success' },
-    { title: 'Tingkat Penyelesaian', value: `${completionRate}%`, icon: TrendingUp, tone: 'accent' },
-    { title: 'Melewati Batas Waktu', value: overdue, icon: Clock3, tone: 'danger' },
-    { title: 'Menunggu Verifikasi', value: awaitingVerification, icon: ShieldCheck, tone: 'info' },
+    { title: t('statTotal'), value: total, icon: BarChart3, tone: 'accent' },
+    { title: t('statPending'), value: pending, icon: AlertTriangle, tone: 'warning' },
+    { title: t('statFixed'), value: fixed, icon: CheckCircle, tone: 'success' },
+    { title: t('statCompletionRate'), value: `${completionRate}%`, icon: TrendingUp, tone: 'accent' },
+    { title: t('statOverdue'), value: overdue, icon: Clock3, tone: 'danger' },
+    { title: t('statAwaitingVerification'), value: awaitingVerification, icon: ShieldCheck, tone: 'info' },
   ];
 
   return (

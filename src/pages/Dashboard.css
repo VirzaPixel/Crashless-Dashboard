@@ -52,16 +52,19 @@
 }
 
 .header-actions {
-  gap: 17px;
+  gap: 12px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .realtime-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  white-space: nowrap;
+  justify-content: center;
 }
 
 .realtime-indicator {
@@ -73,8 +76,17 @@
 }
 
 .realtime-badge.active .realtime-indicator {
-  background: var(--success);
-  box-shadow: 0 0 0 3px var(--success-soft);
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--line);
+}
+
+.refresh-icon-btn {
+  color: var(--ink);
+}
+
+.refresh-icon-btn:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .refresh-btn {

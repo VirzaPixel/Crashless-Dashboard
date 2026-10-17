@@ -52,6 +52,6 @@ button:disabled {
 }
 
 ::selection {
-  color: #fff;
-  background: var(--accent-dark, #8c452d);
+  color: var(--selection-color, #ffffff);
+  background: var(--selection-bg, #4b5563);
 }

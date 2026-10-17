@@ -4,6 +4,8 @@ import { Search, ShieldCheck, UserCog, UserX, UserCheck, RefreshCw, Trash2, User
 import { useOperators } from '../hooks/useOperators';
 import { useRole, getRoleLabel, isSuperadmin } from '../lib/roles';
 import { Modal } from '../components/common/Modal';
+import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
+import { useLanguage } from '../components/common/language';
 import toast, { Toaster } from 'react-hot-toast';
 import './Operators.css';
 
@@ -94,6 +96,7 @@ function CreateAccountForm({ onClose, onCreate, submitting }) {
 export function Operators() {
   const navigate = useNavigate();
   const { role, session } = useRole();
+  const { t } = useLanguage();
   const {
     operators,
     loading,
@@ -228,18 +231,27 @@ export function Operators() {
       <header className="operators-header">
         <div>
           <p className="section-kicker">Super Operator</p>
-          <h1>Pengelolaan Akun</h1>
-          <p className="operators-sub">Atur peran, status, dan akun operator sistem.</p>
+          <h1>{t('operatorsTitle')}</h1>
+          <p className="operators-sub">{t('operatorsSubtitle')}</p>
         </div>
         <div className="operators-header-actions">
           <button className="primary-btn" onClick={() => setCreateModalOpen(true)}>
             <UserPlus size={16} />
-            <span>Tambah Akun</span>
+            <span>{t('addAccount')}</span>
           </button>
-          <button className="refresh-btn" onClick={fetchOperators} disabled={loading}>
+          <button
+            className="header-icon-btn refresh-icon-btn"
+            onClick={fetchOperators}
+            disabled={loading}
+            aria-label={t('refresh')}
+            title={t('refresh')}
+          >
             <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-            <span>Segarkan</span>
           </button>
+          <div className="header-controls">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -284,31 +296,39 @@ export function Operators() {
       ) : (
         <div className="operators-table-wrap">
           <table className="operators-table">
-            <thead><tr><th>Alamat Email</th><th>Peran</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{t('emailCol')}</th>
+                <th>{t('roleCol')}</th>
+                <th>{t('statusCol')}</th>
+                <th>{t('createdCol')}</th>
+                <th>{t('actionCol')}</th>
+              </tr>
+            </thead>
             <tbody>
               {filtered.map((op) => {
                 const isSelf = op.id === session?.user?.id;
                 const busy = actingId === op.id;
                 return (
                   <tr key={op.id} className={op.is_active ? '' : 'row-inactive'}>
-                    <td><span className="op-email">{op.email}</span>{isSelf && <span className="op-self">Akun aktif</span>}</td>
+                    <td><span className="op-email">{op.email}</span>{isSelf && <span className="op-self">{t('currentAccountBadge')}</span>}</td>
                     <td>
                       <select value={op.role} onChange={(e) => handleRoleChange(op, e.target.value)} disabled={busy} aria-label={'Peran ' + op.email} className={'role-select role-' + op.role}>
                         {ROLE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                       </select>
                     </td>
-                    <td><span className={'status-pill ' + (op.is_active ? 'on' : 'off')}>{op.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
+                    <td><span className={'status-pill ' + (op.is_active ? 'on' : 'off')}>{op.is_active ? t('activeStatus') : t('inactiveStatus')}</span></td>
                     <td className="op-date">{formatDate(op.created_at)}</td>
                     <td>
                       <div className="op-actions">
                         <button type="button" className={'toggle-btn ' + (op.is_active ? 'danger' : 'ok')} onClick={() => handleToggleActive(op)} disabled={busy}>
                           {op.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
-                          <span>{busy ? 'Memproses...' : op.is_active ? 'Nonaktifkan' : 'Aktifkan'}</span>
+                          <span>{busy ? t('processing') : op.is_active ? t('deactivate') : t('activate')}</span>
                         </button>
                         {!isSelf && (
                           <button type="button" className="delete-btn" onClick={() => handleDelete(op)} disabled={busy} title="Hapus akun">
                             <Trash2 size={15} />
-                            <span>Hapus</span>
+                            <span>{t('delete')}</span>
                           </button>
                         )}
                       </div>

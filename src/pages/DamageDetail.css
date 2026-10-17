@@ -4,12 +4,19 @@
   padding: 25px 34px 48px;
 }
 
+.detail-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
 .back-btn {
   min-height: 37px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 18px;
   padding: 7px 10px;
   color: var(--muted-strong);
   background: transparent;
@@ -444,6 +451,12 @@
   color: var(--danger);
   background: var(--danger-soft);
   border-color: var(--danger-line);
+}
+
+.decision-panel.no-damage-panel {
+  color: var(--ink);
+  background: var(--surface-muted);
+  border-color: var(--line-strong);
 }
 
 .detail-loading,

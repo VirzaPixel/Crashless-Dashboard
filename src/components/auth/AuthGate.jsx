@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, LockKeyhole, MapPinned } from 'lucide-react';
 import { supabase, supabaseAuthStorageKey } from '../../lib/supabase';
 import { RoleContext, canAccessDashboard, getSessionRole } from '../../lib/roles';
+import { useLanguage } from '../common/language';
 import './AuthGate.css';
 
 const INVALID_ACCESS_MESSAGE = 'Email, kata sandi, atau hak akses tidak valid.';
@@ -46,6 +47,7 @@ export function AuthGate({ children }) {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useLanguage();
 
   useEffect(() => {
     let mounted = true;
@@ -251,18 +253,11 @@ export function AuthGate({ children }) {
     <RoleContext.Provider value={{ role: getSessionRole(session), session }}>
       {error && <p className="auth-session-error" role="alert">{error}</p>}
       <div className="auth-session-bar">
-        <span className="auth-session-role">{getRoleLabelFallback(getSessionRole(session))}</span>
         <span className="auth-session-user">{session.user.email}</span>
-        <button type="button" onClick={handleSignOut}>Keluar</button>
+        <button type="button" onClick={handleSignOut}>{t('authSignOut')}</button>
       </div>
       {children}
     </RoleContext.Provider>
   );
-}
-
-function getRoleLabelFallback(role) {
-  if (role === 'superadmin') return 'Super Operator';
-  if (role === 'admin') return 'Operator';
-  return 'Operator';
 }
 

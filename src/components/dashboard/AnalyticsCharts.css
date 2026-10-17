@@ -1,8 +1,121 @@
-.analytics { margin-bottom: 20px; }
-.analytics-head h2 { margin: 2px 0 12px; color: var(--ink); font-size: 1.2rem; letter-spacing: -0.02em; }
-.analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; }
-.chart-card h3 { margin: 0 0 8px; color: var(--ink); font-size: 0.9rem; }
-.chart-box { width: 100%; }
-.chart-wide { grid-column: 1 / -1; }
-@media (max-width: 800px) { .analytics-grid { grid-template-columns: minmax(0, 1fr); } }
+.analytics {
+  margin-bottom: 24px;
+}
+
+.analytics-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.analytics-head h2 {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.range-button-group {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  gap: 2px;
+}
+
+.range-pill {
+  padding: 5px 11px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font-size: 0.77rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.range-pill:hover {
+  color: var(--ink);
+  background: var(--surface-muted);
+}
+
+.range-pill.active {
+  color: var(--on-solid);
+  background: var(--ink);
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 18px;
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.chart-card-header h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.94rem;
+  font-weight: 650;
+}
+
+.chart-total-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.chart-box {
+  width: 100%;
+}
+
+.chart-wide {
+  grid-column: 1 / -1;
+}
+
+.recharts-legend-item-text {
+  color: var(--ink) !important;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.recharts-default-tooltip {
+  background-color: var(--surface) !important;
+  border: 1px solid var(--line-strong) !important;
+  color: var(--ink) !important;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+}
+
+.recharts-tooltip-item {
+  color: var(--ink) !important;
+}
+
+@media (max-width: 800px) {
+  .analytics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .range-button-group {
+    width: 100%;
+    overflow-x: auto;
+  }
+}

@@ -255,6 +255,12 @@
   font-size: 0.82rem;
 }
 
+.auth-session-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .auth-session-user {
   max-width: min(50vw, 360px);
   overflow: hidden;

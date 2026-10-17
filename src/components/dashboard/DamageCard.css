@@ -48,7 +48,7 @@
   align-items: center;
   min-height: 23px;
   padding: 4px 8px;
-  color: var(--muted-strong);
+  color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 5px;
@@ -64,11 +64,11 @@
   box-shadow: 0 2px 8px var(--badge-shadow);
 }
 
-.status-badge.pending { color: var(--warning); background: var(--warning-soft); }
-.status-badge.in_progress { color: var(--info); background: var(--info-soft); }
-.status-badge.fixed { color: var(--warning); background: var(--warning-soft); }
-.status-badge.verified { color: var(--success); background: var(--success-soft); }
-.status-badge.rejected { color: var(--danger); background: var(--danger-soft); }
+.status-badge.pending { color: var(--ink); background: var(--surface); border-color: var(--line-strong); }
+.status-badge.in_progress { color: var(--ink); background: var(--surface-muted); border-color: var(--line-strong); }
+.status-badge.fixed { color: var(--ink); background: var(--surface); border-color: var(--line-strong); }
+.status-badge.verified { color: var(--on-solid); background: var(--ink); border-color: var(--ink); }
+.status-badge.rejected { color: var(--muted-strong); background: var(--surface-subtle); border-color: var(--line); }
 
 .card-info {
   display: flex;
@@ -78,7 +78,7 @@
 }
 
 .card-progress {
-  height: 6px;
+  height: 4px;
   overflow: hidden;
   background: var(--surface-muted);
   border-radius: 999px;
@@ -87,20 +87,19 @@
 .card-progress-bar {
   display: block;
   height: 100%;
-  background: var(--accent-solid);
+  background: var(--ink);
   border-radius: 999px;
   transition: width 250ms ease;
 }
 .type-badge.no_damage {
-  color: var(--success);
+  color: var(--muted-strong);
 }
 
-
-.card-progress-bar.pending { background: var(--warning); }
-.card-progress-bar.in_progress { background: var(--info); }
-.card-progress-bar.fixed { background: var(--accent-solid); }
-.card-progress-bar.verified { background: var(--success); }
-.card-progress-bar.rejected { background: var(--danger); }
+.card-progress-bar.pending { background: var(--muted); }
+.card-progress-bar.in_progress { background: var(--muted-strong); }
+.card-progress-bar.fixed { background: var(--ink); }
+.card-progress-bar.verified { background: var(--ink); }
+.card-progress-bar.rejected { background: var(--muted); }
 
 .overdue-ribbon {
   position: absolute;
@@ -110,8 +109,9 @@
   align-items: center;
   gap: 5px;
   padding: 4px 9px;
-  color: #fff;
-  background: var(--danger);
+  color: var(--on-solid);
+  background: var(--ink);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
   font-size: 0.68rem;
   font-weight: 700;
@@ -153,18 +153,21 @@
 
 .priority-badge.critical,
 .priority-badge.high {
-  color: var(--danger);
-  background: var(--danger-soft);
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--line-strong);
 }
 
 .priority-badge.medium {
-  color: var(--warning);
-  background: var(--warning-soft);
+  color: var(--muted-strong);
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
 }
 
 .priority-badge.low {
-  color: var(--success);
-  background: var(--success-soft);
+  color: var(--muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
 }
 
 .confidence-score {
