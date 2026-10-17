@@ -73,8 +73,49 @@
 .card-info {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 15px;
+}
+
+.card-progress {
+  height: 6px;
+  overflow: hidden;
+  background: var(--surface-muted);
+  border-radius: 999px;
+}
+
+.card-progress-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent-solid);
+  border-radius: 999px;
+  transition: width 250ms ease;
+}
+.type-badge.no_damage {
+  color: var(--success);
+}
+
+
+.card-progress-bar.pending { background: var(--warning); }
+.card-progress-bar.in_progress { background: var(--info); }
+.card-progress-bar.fixed { background: var(--accent-solid); }
+.card-progress-bar.verified { background: var(--success); }
+.card-progress-bar.rejected { background: var(--danger); }
+
+.overdue-ribbon {
+  position: absolute;
+  right: 11px;
+  bottom: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px var(--badge-shadow);
 }
 
 .card-header {

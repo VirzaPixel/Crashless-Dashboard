@@ -2,6 +2,7 @@ const DAMAGE_LABELS = {
   pothole: 'Lubang Jalan',
   crack: 'Retakan',
   manhole: 'Manhole',
+  no_damage: 'Tidak Ada Kerusakan',
 };
 
 const WORKFLOW_LABELS = {
@@ -19,7 +20,8 @@ const PRIORITY_LABELS = {
   critical: 'Kritis',
 };
 
-const SUPPORTED_TYPES = new Set(Object.keys(DAMAGE_LABELS));
+const REAL_DAMAGE_TYPES = new Set(['pothole', 'crack', 'manhole']);
+const SUPPORTED_TYPES = new Set([...Object.keys(DAMAGE_LABELS), 'unknown']);
 const SUPPORTED_WORKFLOW_STATUSES = new Set(Object.keys(WORKFLOW_LABELS));
 const SUPPORTED_PRIORITIES = new Set(Object.keys(PRIORITY_LABELS));
 
@@ -34,7 +36,7 @@ export function getDamageDetections(damage) {
 
 export function getPrimaryDetection(damage) {
   return getDamageDetections(damage)
-    .filter((detection) => SUPPORTED_TYPES.has(detection?.label))
+    .filter((detection) => REAL_DAMAGE_TYPES.has(detection?.label))
     .reduce((primary, detection) => {
       if (!primary) return detection;
       return toFiniteNumber(detection.confidence) >
@@ -45,6 +47,8 @@ export function getPrimaryDetection(damage) {
 }
 
 export function getDamageType(damage) {
+  if (hasNoDamage(damage)) return 'no_damage';
+
   if (SUPPORTED_TYPES.has(damage?.damage_type)) {
     return damage.damage_type;
   }
@@ -64,11 +68,53 @@ export function getDamageTypeLabel(type) {
   return DAMAGE_LABELS[type] ?? 'Kerusakan Jalan';
 }
 
-export function getConfidenceScore(damage) {
-  const explicitScore = Number(damage?.confidence_score);
-  if (Number.isFinite(explicitScore)) return explicitScore;
+export function formatConfidenceScore(damage) {
+  if (hasNoDamage(damage)) return null;
+  const score = getConfidenceScore(damage);
+  if (!Number.isFinite(score)) return null;
+  return `${(score * 100).toFixed(0)}%`;
+}
 
-  return toFiniteNumber(getPrimaryDetection(damage)?.confidence);
+export function getConfidenceScore(damage) {
+  const rawScore = damage?.confidence_score;
+  if (rawScore !== null && rawScore !== undefined && rawScore !== '') {
+    const explicitScore = Number(rawScore);
+    if (Number.isFinite(explicitScore)) return explicitScore;
+  }
+
+  const primary = getPrimaryDetection(damage);
+  if (primary) {
+    const primaryScore = Number(primary.confidence);
+    if (Number.isFinite(primaryScore)) return primaryScore;
+  }
+
+  // Tidak ada info AI sama sekali → null (bukan 0!) agar tidak
+  // disalahartikan sebagai "tidak ada kerusakan".
+  return null;
+}
+
+export function hasNoDamage(damage) {
+  // Hanya "tidak ada kerusakan" bila AI EKSPILISIT memberi skor 0 —
+  // via confidence_score, deteksi primer, atau daftar deteksi.
+  // Data tanpa info AI sama sekali (null/tanpa deteksi) = bukan no_damage,
+  // supaya laporan lama tetap tampil normal.
+  const rawScore = damage?.confidence_score;
+  if (rawScore !== null && rawScore !== undefined && rawScore !== '') {
+    const explicitScore = Number(rawScore);
+    if (Number.isFinite(explicitScore)) return explicitScore <= 0;
+  }
+
+  const detections = getDamageDetections(damage);
+  const realDetections = detections.filter((detection) =>
+    REAL_DAMAGE_TYPES.has(detection?.label),
+  );
+  if (realDetections.length > 0) {
+    return !realDetections.some(
+      (detection) => Number(detection?.confidence) > 0,
+    );
+  }
+
+  return false;
 }
 
 export function normalizeWorkflowStatus(damage) {

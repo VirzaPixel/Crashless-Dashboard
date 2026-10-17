@@ -189,6 +189,26 @@
   animation: fixed-spin 700ms linear infinite;
 }
 
+.btn-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.form-saved-panel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 10px 13px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 @keyframes fixed-spin {
   to { transform: rotate(360deg); }
 }

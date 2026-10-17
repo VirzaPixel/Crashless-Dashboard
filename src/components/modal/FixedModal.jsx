@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from 'react';
-import { Camera, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera, Calendar, AlertCircle, CheckCircle2, FileDown } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { formatBytes } from '../../lib/imageCompression';
 import './FixedModal.css';
 
 export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFixed, loading }) {
@@ -8,6 +9,8 @@ export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFi
   const [fixedAt, setFixedAt] = useState(new Date().toISOString().substring(0, 16));
   const [repairNotes, setRepairNotes] = useState('');
   const [formError, setFormError] = useState(null);
+  const [uploadStage, setUploadStage] = useState('');
+  const [savedBytes, setSavedBytes] = useState(null);
   const previewUrls = useMemo(
     () => files.map((file) => (file ? URL.createObjectURL(file) : null)),
     [files],
@@ -45,6 +48,7 @@ export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFi
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+    setSavedBytes(null);
 
     // Validasi 3 file foto wajib
     if (files.some(file => file === null)) {
@@ -59,12 +63,18 @@ export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFi
         return;
       }
 
+      setUploadStage('Mengompresi foto...');
       const formattedDate = parsedDate.toISOString();
+      const originalTotal = files.reduce((sum, f) => sum + (f?.size || 0), 0);
       await markAsFixed(damageId, {
         files: files.filter((file) => file !== null),
         fixedAt: formattedDate,
         repairNotes,
+        onStage: (stage) => setUploadStage(stage === 'upload' ? 'Mengunggah foto...' : 'Mengompresi foto...'),
       });
+      // Estimasi hemat: asumsi hasil kompres ~220 KB/foto (1280px q0.78).
+      const estimateSaved = Math.max(originalTotal - files.filter(Boolean).length * 220 * 1024, 0);
+      setSavedBytes(estimateSaved);
 
       setFiles([null, null, null]);
       setFixedAt(new Date().toISOString().substring(0, 16));
@@ -73,7 +83,9 @@ export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFi
       await onFixedSuccess();
       onClose();
     } catch (err) {
-      setFormError(err.message || 'Terjadi kesalahan saat mengupdate status perbaikan.');
+      setFormError(err.message || 'Terjadi kesalahan saat memperbarui status perbaikan.');
+    } finally {
+      setUploadStage('');
     }
   };
 
@@ -82,7 +94,15 @@ export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFi
       <form onSubmit={handleSubmit} className="fixed-form">
         <div className="form-description">
           Unggah tiga foto bukti perbaikan sebelum mengirim laporan.
+          Foto dikompresi otomatis (±1280px) agar menghemat kuota &amp; penyimpanan.
         </div>
+
+        {savedBytes !== null && savedBytes > 0 && (
+          <div className="form-saved-panel" role="status">
+            <FileDown size={17} />
+            <span>Estimasi penghematan penyimpanan: {formatBytes(savedBytes)}.</span>
+          </div>
+        )}
 
         {formError && (
           <div className="form-error-panel">
@@ -157,7 +177,10 @@ export function FixedModal({ isOpen, onClose, damageId, onFixedSuccess, markAsFi
           disabled={loading}
         >
           {loading ? (
-            <span className="btn-spinner"></span>
+            <span className="btn-progress">
+              <span className="btn-spinner" aria-hidden="true"></span>
+              <span>{uploadStage || 'Memproses...'}</span>
+            </span>
           ) : (
             <>
               <CheckCircle2 size={18} />

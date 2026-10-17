@@ -1,0 +1,8 @@
+.analytics { margin-bottom: 20px; }
+.analytics-head h2 { margin: 2px 0 12px; color: var(--ink); font-size: 1.2rem; letter-spacing: -0.02em; }
+.analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; }
+.chart-card h3 { margin: 0 0 8px; color: var(--ink); font-size: 0.9rem; }
+.chart-box { width: 100%; }
+.chart-wide { grid-column: 1 / -1; }
+@media (max-width: 800px) { .analytics-grid { grid-template-columns: minmax(0, 1fr); } }

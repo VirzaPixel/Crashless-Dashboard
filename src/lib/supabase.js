@@ -20,9 +20,9 @@ function isPrivilegedKey(key) {
 }
 
 export const supabaseConfigError = !supabaseUrl || !supabaseAnonKey
-  ? 'Supabase belum dikonfigurasi. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY dengan URL project dan anon/publishable key.'
+  ? 'Konfigurasi koneksi layanan belum lengkap. Hubungi administrator sistem untuk memperbarui konfigurasi.'
   : isPrivilegedKey(supabaseAnonKey)
-    ? 'VITE_SUPABASE_ANON_KEY berisi secret/service-role key. Gunakan anon/publishable key; key berhak istimewa tidak boleh digunakan di browser.'
+    ? 'Konfigurasi kunci akses tidak aman untuk aplikasi web. Hubungi administrator sistem untuk memperbaikinya.'
     : null;
 
 export const supabaseAuthStorageKey = 'crashless-operator-session';

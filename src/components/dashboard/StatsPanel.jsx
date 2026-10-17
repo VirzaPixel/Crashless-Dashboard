@@ -17,12 +17,12 @@ export function StatsPanel({ damages }) {
   const completionRate = total > 0 ? ((fixed / total) * 100).toFixed(0) : 0;
 
   const stats = [
-    { title: 'Total laporan', value: total, icon: BarChart3, tone: 'accent' },
-    { title: 'Belum selesai', value: pending, icon: AlertTriangle, tone: 'warning' },
-    { title: 'Selesai diperbaiki', value: fixed, icon: CheckCircle, tone: 'success' },
-    { title: 'Tingkat selesai', value: `${completionRate}%`, icon: TrendingUp, tone: 'accent' },
-    { title: 'Melewati tenggat', value: overdue, icon: Clock3, tone: 'danger' },
-    { title: 'Menunggu verifikasi', value: awaitingVerification, icon: ShieldCheck, tone: 'info' },
+    { title: 'Total Laporan', value: total, icon: BarChart3, tone: 'accent' },
+    { title: 'Dalam Proses', value: pending, icon: AlertTriangle, tone: 'warning' },
+    { title: 'Selesai', value: fixed, icon: CheckCircle, tone: 'success' },
+    { title: 'Tingkat Penyelesaian', value: `${completionRate}%`, icon: TrendingUp, tone: 'accent' },
+    { title: 'Melewati Batas Waktu', value: overdue, icon: Clock3, tone: 'danger' },
+    { title: 'Menunggu Verifikasi', value: awaitingVerification, icon: ShieldCheck, tone: 'info' },
   ];
 
   return (

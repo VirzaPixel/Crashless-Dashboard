@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { compressImage } from '../lib/imageCompression';
 import { normalizeRoadDamage } from '../lib/roadDamage';
 
 const WORKFLOW_MIGRATION_ERROR =
-  'Migration workflow belum dijalankan. Jalankan Crashless-Web/supabase/migrations/001_repair_workflow.sql di Supabase.';
+  'Data laporan tidak dapat dimuat karena konfigurasi sistem belum lengkap. Silakan hubungi administrator sistem.';
 
 function getWorkflowError(error) {
   const message = error?.message || '';
@@ -77,16 +78,22 @@ export function useRoadDamages() {
     }
   }, []);
 
-  const uploadPhoto = useCallback(async (file) => {
+  const uploadPhoto = useCallback(async (file, onStage) => {
     if (!file) return null;
 
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    onStage?.('compress');
+    const compressed = await compressImage(file);
+
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
     const filePath = `fixed_photos/${fileName}`;
 
+    onStage?.('upload');
     const { error: uploadError } = await supabase.storage
       .from('road-damage-images')
-      .upload(filePath, file);
+      .upload(filePath, compressed, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      });
 
     if (uploadError) throw uploadError;
 
@@ -97,21 +104,73 @@ export function useRoadDamages() {
     return publicUrlData.publicUrl;
   }, []);
 
-  const updateWorkflow = useCallback(async (id, values, expectedStatus) => {
+  const updateWorkflow = useCallback(async (id, values, expectedStatuses) => {
+    const expectedList = expectedStatuses
+      ? (Array.isArray(expectedStatuses) ? expectedStatuses : [expectedStatuses])
+      : null;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session) {
+      throw new Error(
+        'Sesi Anda telah berakhir. Silakan keluar lalu masuk kembali.',
+      );
+    }
+    const sessionRole = sessionData.session.user?.app_metadata?.role;
+    if (sessionRole && sessionRole !== 'admin' && sessionRole !== 'superadmin') {
+      throw new Error(
+        'Akun Anda tidak memiliki kewenangan untuk memperbarui status laporan. Hubungi Super Operator untuk mengatur peran akses Anda.',
+      );
+    }
+
+    const { data: current, error: readError } = await supabase
+      .from('road_damages')
+      .select('id, workflow_status')
+      .eq('id', id)
+      .maybeSingle();
+    if (readError) throw getWorkflowError(readError);
+    if (!current) {
+      throw new Error(
+        'Laporan tidak ditemukan atau tidak bisa dibaca dengan sesi ini.',
+      );
+    }
+    if (expectedList && !expectedList.includes(current.workflow_status)) {
+      throw new Error(
+        `Status laporan sudah berubah (saat ini: ${current.workflow_status}). Muat ulang halaman sebelum mencoba lagi.`,
+      );
+    }
+
     const query = supabase
       .from('road_damages')
       .update(values)
       .eq('id', id);
 
-    if (expectedStatus) {
-      query.eq('workflow_status', expectedStatus);
+    if (expectedList) {
+      query.in('workflow_status', expectedList);
     }
 
     const { data, error: updateError } = await query.select().maybeSingle();
-    if (updateError) throw getWorkflowError(updateError);
+    if (updateError) {
+      console.error('Supabase updateWorkflow failed:', {
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
+      throw getWorkflowError(updateError);
+    }
     if (!data) {
+      const { data: after } = await supabase
+        .from('road_damages')
+        .select('workflow_status')
+        .eq('id', id)
+        .maybeSingle();
+      if (after && expectedList && !expectedList.includes(after.workflow_status)) {
+        throw new Error(
+          'Status laporan telah diperbarui oleh pengguna lain. Muat ulang halaman sebelum mencoba kembali.',
+        );
+      }
       throw new Error(
-        'Laporan tidak dapat diperbarui. Pastikan sesi admin aktif dan status laporan belum berubah.',
+        'Perubahan tidak dapat disimpan. Pastikan Anda memiliki kewenangan operator, muat ulang halaman, lalu coba kembali. Jika masalah berlanjut, hubungi administrator sistem.',
       );
     }
     return normalizeRoadDamage(data);
@@ -124,7 +183,7 @@ export function useRoadDamages() {
       return await updateWorkflow(
         id,
         { workflow_status: 'in_progress' },
-        'pending',
+        ['pending', 'rejected'],
       );
     } catch (err) {
       const normalizedError = getWorkflowError(err);

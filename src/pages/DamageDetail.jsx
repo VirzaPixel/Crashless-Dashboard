@@ -18,6 +18,7 @@ import {
   getPriorityLabel,
   getWorkflowStatusLabel,
   hasValidCoordinates,
+  formatConfidenceScore,
 } from '../lib/roadDamage';
 import { FixedModal } from '../components/modal/FixedModal';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -177,7 +178,7 @@ export function DamageDetail() {
           {detailError ||
             'Laporan kerusakan jalan dengan ID tersebut tidak ada atau sudah dihapus.'}
         </p>
-        <button onClick={() => navigate('/')}>Kembali ke antrean</button>
+        <button onClick={() => navigate('/')}>Kembali ke Dashboard</button>
       </div>
     );
   }
@@ -272,7 +273,13 @@ export function DamageDetail() {
               <div className="detail-icon"><Percent size={18} /></div>
               <div className="detail-text">
                 <span className="detail-label">Tingkat Keyakinan AI</span>
-                <span className="detail-val">{(damage.confidence_score * 100).toFixed(1)}%</span>
+                <span className="detail-val">
+                  {damage.damage_type === 'no_damage'
+                    ? 'Tidak ada kerusakan terdeteksi'
+                    : (formatConfidenceScore(damage)
+                      ? `${(damage.confidence_score * 100).toFixed(1)}%`
+                      : 'Skor tidak tersedia')}
+                </span>
               </div>
             </div>
             <div className="info-detail-item">
@@ -354,7 +361,13 @@ export function DamageDetail() {
             <div className="decision-panel verified"><ShieldCheck size={20} /> Perbaikan telah diverifikasi.</div>
           )}
           {workflowStatus === 'rejected' && (
-            <div className="decision-panel rejected"><XCircle size={20} /> Perbaikan ditolak; laporan siap ditangani ulang.</div>
+            <>
+              <div className="decision-panel rejected"><XCircle size={20} /> Perbaikan ditolak; laporan siap ditangani ulang.</div>
+              <button className="mark-fixed-action-btn" onClick={handleStartRepair} disabled={actionLoading}>
+                <Play size={18} />
+                <span>{actionLoading ? 'Memproses...' : 'Tangani Ulang'}</span>
+              </button>
+            </>
           )}
         </section>
       </div>

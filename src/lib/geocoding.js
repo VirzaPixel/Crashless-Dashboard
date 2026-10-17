@@ -18,7 +18,7 @@ export async function reverseGeocode(lat, lng) {
       }
     });
 
-    if (!response.ok) throw new Error('Geocoding request failed');
+    if (!response.ok) throw new Error('Permintaan geocoding gagal diproses.');
     
     const data = await response.json();
     let address = '';

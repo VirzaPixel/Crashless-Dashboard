@@ -445,3 +445,23 @@
     transition: none;
   }
 }
+
+.view-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.view-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 15px; color: var(--muted-strong); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; font-size: 0.82rem; font-weight: 650; cursor: pointer; transition: all 150ms ease; }
+.view-tab:hover { border-color: var(--accent); color: var(--accent-dark); }
+.view-tab.active { color: var(--on-solid); background: var(--accent-solid); border-color: var(--accent-solid); }
+.global-map-section { margin-bottom: 20px; }
+.global-map-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.global-map-wrap .leaflet-container { font: inherit; z-index: 0; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0 6px; padding: 0; list-style: none; }
+.map-legend li { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--muted-strong); }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15); }
+.map-hint { margin: 4px 0 0; color: var(--muted); font-size: 0.79rem; }
+.gm-marker-wrap { background: transparent; border: 0; }
+.gm-pin { position: relative; display: grid; place-items: center; width: 30px; height: 30px; background: var(--pin, #6b7280); border: 2.5px solid #fff; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+.gm-dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; transform: rotate(45deg); }
+.gm-flag { position: absolute; top: -14px; right: -6px; font-size: 15px; color: var(--pin); transform: rotate(45deg); text-shadow: 0 1px 2px rgba(255,255,255,0.9); }
+.gm-popup { display: grid; gap: 3px; font-size: 0.8rem; }
+.gm-popup .gm-coords { color: #6b7280; font-size: 0.74rem; }
+.gm-popup a { color: #2563eb; font-weight: 650; }
+@media (max-width: 700px) { .view-tabs { overflow-x: auto; } }
