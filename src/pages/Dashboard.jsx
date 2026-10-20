@@ -10,6 +10,7 @@ import { AnalyticsCharts } from '../components/dashboard/AnalyticsCharts';
 import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
 import { useLanguage } from '../components/common/language';
 import { supabase } from '../lib/supabase';
+import crashlessLogo from '../assets/crashless-logo.png';
 import 'leaflet/dist/leaflet.css';
 import {
   getDamageType,
@@ -150,7 +151,7 @@ export function Dashboard() {
       <header className="dashboard-header">
         <div className="header-brand">
           <span className="dashboard-brand-mark" aria-hidden="true">
-            <MapPinned size={21} strokeWidth={1.8} />
+            <img src={crashlessLogo} alt="" />
           </span>
           <div>
             <p className="brand-overline">Crashless</p>

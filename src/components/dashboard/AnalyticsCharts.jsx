@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
-  AreaChart, Area, Legend, ResponsiveContainer, Tooltip,
+  ComposedChart, Area, PieChart, Pie, ResponsiveContainer, ReferenceLine, ReferenceDot, Tooltip,
 } from 'recharts';
 import { getDamageTypeLabel, getWorkflowStatusLabel } from '../../lib/roadDamage';
 import { useLanguage } from '../common/language';
-import { useTheme } from '../common/theme';
 import './AnalyticsCharts.css';
 
 const WORKFLOW_ORDER = ['pending', 'in_progress', 'fixed', 'verified', 'rejected'];
@@ -31,6 +30,19 @@ const THEME_PALETTES = {
     tooltipBorder: '#374151',
     lineIncoming: '#f87171',
     lineResolved: '#34d399',
+    tv: {
+      grid: '#222834',
+      axis: '#787b86',
+      cross: '#5c6270',
+      line: '#26a69a',
+      areaTop: 'rgba(38, 166, 154, 0.30)',
+      areaBottom: 'rgba(38, 166, 154, 0)',
+      volume: '#2b3140',
+      tooltipBg: '#1a1f2b',
+      tooltipBorder: '#2a3140',
+      text: '#d1d4dc',
+      dim: '#787b86',
+    },
   },
   light: {
     status: {
@@ -51,6 +63,19 @@ const THEME_PALETTES = {
     tooltipBorder: '#cbd5e1',
     lineIncoming: '#ef4444',
     lineResolved: '#10b981',
+    tv: {
+      grid: '#eff1f4',
+      axis: '#787b86',
+      cross: '#9598a1',
+      line: '#089981',
+      areaTop: 'rgba(8, 153, 129, 0.22)',
+      areaBottom: 'rgba(8, 153, 129, 0)',
+      volume: '#e4e9f0',
+      tooltipBg: '#ffffff',
+      tooltipBorder: '#e0e3eb',
+      text: '#131722',
+      dim: '#787b86',
+    },
   },
 };
 
@@ -80,9 +105,11 @@ function formatPeriodKey(date, range) {
 
 export function AnalyticsCharts({ damages }) {
   const { lang, t } = useLanguage();
-  const { theme } = useTheme();
-  const palette = THEME_PALETTES[theme === 'dark' ? 'dark' : 'light'];
+  const palette = THEME_PALETTES.dark;
   const [timeRange, setTimeRange] = useState('30d');
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const [pinnedIndex, setPinnedIndex] = useState(null);
+  const [pointer, setPointer] = useState(null);
 
   const filteredByRange = useMemo(() => {
     if (timeRange === 'all') return damages;
@@ -156,6 +183,11 @@ export function AnalyticsCharts({ damages }) {
     }));
   }, [filteredByRange, lang, palette]);
 
+  const typeTotal = useMemo(
+    () => typeData.reduce((acc, curr) => acc + curr.jumlah, 0),
+    [typeData],
+  );
+
   // Tren Masuk vs Selesai
   const trendData = useMemo(() => {
     const buckets = {};
@@ -176,6 +208,69 @@ export function AnalyticsCharts({ damages }) {
       .map(({ periode, masuk, selesai }) => ({ periode, masuk, selesai }));
   }, [filteredByRange, timeRange]);
 
+  // Ringkasan tren
+  const trendSummary = useMemo(() => {
+    const masuk = trendData.reduce((total, item) => total + item.masuk, 0);
+    const selesai = trendData.reduce((total, item) => total + item.selesai, 0);
+    return {
+      masuk,
+      selesai,
+      completion: masuk > 0 ? Math.round((selesai / masuk) * 100) : 0,
+    };
+  }, [trendData]);
+
+  const labelStep = Math.max(1, Math.ceil(trendData.length / 8));
+
+  const trendChartData = useMemo(
+    () => trendData.map((item) => ({
+      ...item,
+      rate: item.masuk > 0 ? (item.selesai / item.masuk) * 100 : 0,
+    })),
+    [trendData],
+  );
+
+  const volumeMax = useMemo(() => {
+    const max = Math.max(1, ...trendChartData.map((item) => item.masuk));
+    return max * 4.5;
+  }, [trendChartData]);
+
+  const crosshairIndex = hoverIndex ?? pinnedIndex;
+  const activeTrend = crosshairIndex !== null
+    ? trendChartData[crosshairIndex] ?? null
+    : trendChartData[trendChartData.length - 1] ?? null;
+  const showCrosshair = crosshairIndex !== null && activeTrend !== null;
+  const isPinned = pinnedIndex !== null && hoverIndex === null;
+  const tooltipTrend = hoverIndex !== null ? trendChartData[hoverIndex] ?? null : null;
+
+  const handleChartMove = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const plotWidth = Math.max(1, rect.width - 42);
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    if (x < 0 || x > plotWidth) {
+      setHoverIndex(null);
+      setPointer(null);
+      return;
+    }
+
+    const index = Math.min(
+      trendChartData.length - 1,
+      Math.max(0, Math.floor((x / plotWidth) * trendChartData.length)),
+    );
+    if (index !== hoverIndex) setHoverIndex(index);
+    setPointer({ x, y, width: rect.width, height: rect.height });
+  };
+
+  useEffect(() => {
+    if (pinnedIndex === null) return undefined;
+    const handleKey = (event) => {
+      if (event.key === 'Escape') setPinnedIndex(null);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [pinnedIndex]);
+
   if (damages.length === 0) return null;
 
   return (
@@ -192,7 +287,11 @@ export function AnalyticsCharts({ damages }) {
               key={r.key}
               type="button"
               className={`range-pill ${timeRange === r.key ? 'active' : ''}`}
-              onClick={() => setTimeRange(r.key)}
+              onClick={() => {
+                setTimeRange(r.key);
+                setHoverIndex(null);
+                setPinnedIndex(null);
+              }}
             >
               {t(r.labelKey)}
             </button>
@@ -233,7 +332,7 @@ export function AnalyticsCharts({ damages }) {
                     borderRadius: 'var(--radius-sm)',
                   }}
                 />
-                <Bar dataKey="jumlah" name={t('statTotal')} radius={[0, 4, 4, 0]}>
+                <Bar dataKey="jumlah" name={t('statTotal')} radius={[0, 4, 4, 0]} isAnimationActive={false}>
                   {statusData.map((entry) => (
                     <Cell key={entry.statusKey} fill={entry.fill} />
                   ))}
@@ -247,100 +346,260 @@ export function AnalyticsCharts({ damages }) {
           <div className="chart-card-header">
             <h3>{t('chartType')}</h3>
             <span className="chart-total-count">
-              {typeData.reduce((acc, curr) => acc + curr.jumlah, 0)} {lang === 'en' ? 'cases' : 'kasus'}
+              {typeTotal} {lang === 'en' ? 'cases' : 'kasus'}
             </span>
           </div>
           <div className="chart-box">
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart
-                layout="vertical"
-                data={typeData}
-                margin={{ top: 10, right: 24, left: 10, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={palette.grid} />
-                <XAxis type="number" allowDecimals={false} stroke={palette.axis} tick={{ fontSize: 11, fill: palette.axis }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  stroke={palette.axis}
-                  tick={{ fontSize: 12, fill: palette.axis, fontWeight: 500 }}
-                  width={110}
-                />
-                <Tooltip
-                  cursor={{ fill: 'transparent' }}
-                  contentStyle={{
-                    backgroundColor: palette.tooltipBg,
-                    borderColor: palette.tooltipBorder,
-                    color: 'var(--ink)',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                />
-                <Bar dataKey="jumlah" name={t('statTotal')} radius={[0, 4, 4, 0]}>
-                  {typeData.map((entry) => (
-                    <Cell key={entry.typeKey} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="pie-chart-layout">
+              <div className="pie-chart-wrap">
+                <ResponsiveContainer width="100%" height={210}>
+                  <PieChart>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: palette.tooltipBg,
+                        borderColor: palette.tooltipBorder,
+                        color: 'var(--ink)',
+                        borderRadius: 'var(--radius-sm)',
+                      }}
+                      formatter={(value, name) => [value, name]}
+                    />
+                    <Pie
+                      data={typeData.filter((entry) => entry.jumlah > 0)}
+                      dataKey="jumlah"
+                      nameKey="name"
+                      innerRadius={58}
+                      outerRadius={86}
+                      paddingAngle={2}
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke="none"
+                      isAnimationActive={false}
+                    >
+                      {typeData.filter((entry) => entry.jumlah > 0).map((entry) => (
+                        <Cell key={entry.typeKey} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pie-center" aria-hidden="true">
+                  <strong>{typeTotal}</strong>
+                  <span>{lang === 'en' ? 'cases' : 'kasus'}</span>
+                </div>
+              </div>
+
+              <ul className="pie-legend">
+                {typeData.map((entry) => {
+                  const pct = typeTotal > 0 ? Math.round((entry.jumlah / typeTotal) * 100) : 0;
+                  return (
+                    <li key={entry.typeKey}>
+                      <i style={{ background: entry.fill }} />
+                      <span>{entry.name}</span>
+                      <strong>{entry.jumlah}</strong>
+                      <small>{pct}%</small>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
         </article>
 
-        <article className="chart-card chart-wide">
-          <div className="chart-card-header">
-            <h3>{t('chartTrend')}</h3>
+        <article
+          className="chart-card chart-wide trend-card"
+          style={{
+            '--tv-line': palette.tv.line,
+            '--tv-volume': palette.tv.volume,
+            '--tv-text': palette.tv.text,
+            '--tv-dim': palette.tv.dim,
+          }}
+        >
+          <div className="trend-head">
+            <div className="trend-head-main">
+              <h3>{t('chartTrend')}</h3>
+              <p className="trend-subtitle">{t('trendSubtitle')}</p>
+            </div>
+
+            <div className="trend-summary" aria-label={t('chartTrend')}>
+              <div className="trend-metric">
+                <span className="trend-metric-label">{t('incomingReport')}</span>
+                <strong className="trend-metric-value">{trendSummary.masuk}</strong>
+              </div>
+              <div className="trend-metric">
+                <span className="trend-metric-label">{t('completedReport')}</span>
+                <strong className="trend-metric-value">{trendSummary.selesai}</strong>
+              </div>
+              <div className="trend-metric trend-metric-accent" style={{ '--tv-line': palette.tv.line }}>
+                <span className="trend-metric-label">{t('statCompletionRate')}</span>
+                <strong className="trend-metric-value">{trendSummary.completion}%</strong>
+              </div>
+            </div>
           </div>
-          <div className="chart-box">
-            <ResponsiveContainer width="100%" height={270}>
-              <AreaChart data={trendData} margin={{ top: 10, right: 16, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradientMasuk" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={palette.lineIncoming} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={palette.lineIncoming} stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="gradientSelesai" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={palette.lineResolved} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={palette.lineResolved} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={palette.grid} />
-                <XAxis dataKey="periode" stroke={palette.axis} tick={{ fontSize: 11, fill: palette.axis }} />
-                <YAxis allowDecimals={false} stroke={palette.axis} tick={{ fontSize: 11, fill: palette.axis }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: palette.tooltipBg,
-                    borderColor: palette.tooltipBorder,
-                    color: 'var(--ink)',
-                    borderRadius: 'var(--radius-sm)',
+
+          <div className="tv-chart">
+            {trendChartData.length === 0 ? (
+              <div className="trend-empty">{t('trendEmpty')}</div>
+            ) : (
+              <>
+                <div className="tv-legend" aria-live="polite">
+                  <span className="tv-legend-date">{activeTrend?.periode ?? ''}</span>
+                  {isPinned ? (
+                    <span className="tv-pin">{t('trendPinned')}</span>
+                  ) : null}
+                  <span className="tv-legend-item">
+                    <i className="tv-legend-mark tv-legend-mark-line" />
+                    {t('statCompletionRate')}
+                    <strong>{Math.round(activeTrend?.rate ?? 0)}%</strong>
+                  </span>
+                  <span className="tv-legend-item">
+                    <i className="tv-legend-mark tv-legend-mark-bar" />
+                    {t('incomingReport')}
+                    <strong>{activeTrend?.masuk ?? 0}</strong>
+                  </span>
+                  <span className="tv-legend-item">
+                    {t('completedReport')}
+                    <strong>{activeTrend?.selesai ?? 0}</strong>
+                  </span>
+                </div>
+
+                <div
+                  className="tv-plot"
+                  onMouseMove={handleChartMove}
+                  onMouseLeave={() => {
+                    setHoverIndex(null);
+                    setPointer(null);
                   }}
-                />
-                <Legend
-                  wrapperStyle={{
-                    color: 'var(--ink)',
-                    paddingTop: '12px',
+                  onClick={() => {
+                    if (hoverIndex !== null) {
+                      setPinnedIndex((current) => (current === hoverIndex ? null : hoverIndex));
+                    }
                   }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="masuk"
-                  name={t('incomingReport')}
-                  stroke={palette.lineIncoming}
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#gradientMasuk)"
-                  dot={{ r: 3.5, fill: palette.lineIncoming }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="selesai"
-                  name={t('completedReport')}
-                  stroke={palette.lineResolved}
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#gradientSelesai)"
-                  dot={{ r: 3.5, fill: palette.lineResolved }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+                >
+                {tooltipTrend && pointer ? (
+                  <div
+                    className="tv-tooltip"
+                    style={{
+                      left: Math.min(pointer.x + 16, Math.max(8, pointer.width - 178)),
+                      top: Math.min(Math.max(pointer.y - 18, 8), Math.max(8, pointer.height - 150)),
+                      background: palette.tv.tooltipBg,
+                      borderColor: palette.tv.tooltipBorder,
+                      color: palette.tv.text,
+                    }}
+                  >
+                    <p className="tv-tooltip-date">{tooltipTrend.periode}</p>
+                    <div className="tv-tooltip-row">
+                      <span>{t('incomingReport')}</span>
+                      <strong>{tooltipTrend.masuk}</strong>
+                    </div>
+                    <div className="tv-tooltip-row">
+                      <span>{t('completedReport')}</span>
+                      <strong>{tooltipTrend.selesai}</strong>
+                    </div>
+                    <div className="tv-tooltip-row">
+                      <span>{t('statCompletionRate')}</span>
+                      <strong style={{ color: palette.tv.line }}>
+                        {Math.round(tooltipTrend.rate)}%
+                      </strong>
+                    </div>
+                    <div className="tv-tooltip-row tv-tooltip-open">
+                      <span>{t('trendOpen')}</span>
+                      <strong>{Math.max(tooltipTrend.masuk - tooltipTrend.selesai, 0)}</strong>
+                    </div>
+                  </div>
+                ) : null}
+
+                <ResponsiveContainer width="100%" height={248}>
+                  <ComposedChart
+                    data={trendChartData}
+                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="tvAreaFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={palette.tv.line} stopOpacity={0.3} />
+                        <stop offset="100%" stopColor={palette.tv.line} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      stroke={palette.tv.grid}
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="periode"
+                      interval={labelStep - 1}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.tv.grid }}
+                      tickMargin={8}
+                      minTickGap={12}
+                      tick={{ fontSize: 10, fill: palette.tv.axis }}
+                    />
+                    <YAxis
+                      yAxisId="rate"
+                      orientation="right"
+                      domain={[0, 100]}
+                      ticks={[0, 50, 100]}
+                      width={42}
+                      axisLine={false}
+                      tickLine={false}
+                      tickMargin={6}
+                      tick={{ fontSize: 10, fill: palette.tv.axis }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <YAxis yAxisId="volume" hide domain={[0, volumeMax]} />
+                    {showCrosshair ? (
+                      <>
+                        <ReferenceLine
+                          yAxisId="rate"
+                          y={activeTrend.rate}
+                          stroke={palette.tv.cross}
+                          strokeDasharray="4 4"
+                        />
+                        <ReferenceLine
+                          x={activeTrend.periode}
+                          stroke={palette.tv.cross}
+                          strokeDasharray="4 4"
+                        />
+                        <ReferenceDot
+                          yAxisId="rate"
+                          x={activeTrend.periode}
+                          y={activeTrend.rate}
+                          r={4}
+                          fill={palette.tv.line}
+                          stroke={palette.tv.tooltipBg}
+                          strokeWidth={2}
+                          isFront
+                        />
+                      </>
+                    ) : null}
+                    <Area
+                      yAxisId="rate"
+                      type="linear"
+                      dataKey="rate"
+                      stroke={palette.tv.line}
+                      strokeWidth={2}
+                      fill="url(#tvAreaFill)"
+                      dot={false}
+                      activeDot={{
+                        r: 4,
+                        fill: palette.tv.line,
+                        stroke: palette.tv.tooltipBg,
+                        strokeWidth: 2,
+                      }}
+                      isAnimationActive={false}
+                    />
+                    <Bar
+                      yAxisId="volume"
+                      dataKey="masuk"
+                      fill={palette.tv.volume}
+                      maxBarSize={9}
+                      radius={[1, 1, 0, 0]}
+                      isAnimationActive={false}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                </div>
+                <p className="trend-hint">{t('trendHint')}</p>
+              </>
+            )}
           </div>
         </article>
       </div>

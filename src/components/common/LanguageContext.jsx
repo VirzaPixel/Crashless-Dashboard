@@ -30,6 +30,11 @@ const translations = {
     chartTrend: 'Tren Laporan',
     incomingReport: 'Masuk',
     completedReport: 'Selesai',
+    trendSubtitle: 'Garis = tingkat penyelesaian, batang = volume laporan masuk.',
+    trendHint: 'Arahkan kursor untuk detail, klik untuk menandai periode.',
+    trendOpen: 'Belum selesai',
+    trendEmpty: 'Belum ada laporan pada rentang ini.',
+    trendPinned: 'ditandai',
 
     // Stats Panel
     statTotal: 'Total Laporan',
@@ -148,6 +153,11 @@ const translations = {
     chartTrend: 'Report Trends',
     incomingReport: 'Incoming',
     completedReport: 'Resolved',
+    trendSubtitle: 'Line = completion rate, bars = incoming report volume.',
+    trendHint: 'Hover for details, click to pin a period.',
+    trendOpen: 'Open',
+    trendEmpty: 'No reports in this range.',
+    trendPinned: 'pinned',
 
     // Stats Panel
     statTotal: 'Total Reports',

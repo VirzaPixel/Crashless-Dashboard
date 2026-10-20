@@ -111,7 +111,6 @@
   border-color: var(--line-strong);
 }
 
-:root[data-theme="dark"] .auth-brand-mark,
 :root[data-theme="dark"] .auth-form-section,
 :root[data-theme="dark"] .auth-panel {
   background-color: var(--page-bg);

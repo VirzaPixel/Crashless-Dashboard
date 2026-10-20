@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useRoadDamages } from '../hooks/useRoadDamages';
 import { reverseGeocode } from '../lib/geocoding';
+import { resolveDamageImage } from '../lib/damageImages';
 import { useLanguage } from '../components/common/language';
 import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
 import {
@@ -264,7 +265,7 @@ export function DamageDetail() {
           )}
 
           <div className="info-image-container">
-            <img src={damage.image_url} alt={t('photoDamage')} />
+            <img src={resolveDamageImage(damage)} alt={t('photoDamage')} />
           </div>
 
           <div className="info-details-list">

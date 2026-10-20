@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, LockKeyhole, MapPinned } from 'lucide-react';
+import { ArrowRight, LockKeyhole } from 'lucide-react';
 import { supabase, supabaseAuthStorageKey } from '../../lib/supabase';
 import { RoleContext, canAccessDashboard, getSessionRole } from '../../lib/roles';
 import { useLanguage } from '../common/language';
+import crashlessLogo from '../../assets/crashless-logo.png';
 import './AuthGate.css';
 
 const INVALID_ACCESS_MESSAGE = 'Email, kata sandi, atau hak akses tidak valid.';
@@ -184,7 +185,7 @@ export function AuthGate({ children }) {
       <main className="auth-page">
         <section className="auth-intro" aria-labelledby="auth-intro-title">
           <div className="auth-brand">
-            <span className="auth-brand-mark"><MapPinned size={19} strokeWidth={1.8} /></span>
+            <span className="auth-brand-mark"><img src={crashlessLogo} alt="" /></span>
             <span>CRASHLESS<small>OPERASIONAL JALAN</small></span>
           </div>
           <div className="auth-intro-copy">

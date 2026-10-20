@@ -4,6 +4,7 @@ import { Calendar, Percent, MapPin, Clock3 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId, enUS as localeEn } from 'date-fns/locale';
 import { reverseGeocode } from '../../lib/geocoding';
+import { resolveDamageImage } from '../../lib/damageImages';
 import { useLanguage } from '../common/language';
 import {
   getDamageTypeLabel,
@@ -83,7 +84,7 @@ export function DamageCard({ damage }) {
     >
       <div className="card-image-wrapper">
         <img
-          src={damage.image_url}
+          src={resolveDamageImage(damage)}
           alt={damageTypeLabel}
           loading="lazy"
         />

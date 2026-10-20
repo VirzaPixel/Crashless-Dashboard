@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Contoh foto manhole">
+  <defs>
+    <linearGradient id="asphalt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#363a41"/>
+      <stop offset="0.5" stop-color="#24272c"/>
+      <stop offset="1" stop-color="#16181c"/>
+    </linearGradient>
+    <radialGradient id="vignette" cx="50%" cy="48%" r="72%">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.5"/>
+    </radialGradient>
+    <radialGradient id="cover" cx="42%" cy="34%" r="78%">
+      <stop offset="0" stop-color="#383d45"/>
+      <stop offset="1" stop-color="#1d2025"/>
+    </radialGradient>
+    <pattern id="grain" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="5" cy="6" r="1" fill="#ffffff" opacity="0.05"/>
+      <circle cx="20" cy="15" r="1.2" fill="#ffffff" opacity="0.04"/>
+      <circle cx="11" cy="23" r="0.9" fill="#ffffff" opacity="0.05"/>
+      <circle cx="25" cy="4" r="0.8" fill="#ffffff" opacity="0.04"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#asphalt)"/>
+  <rect width="800" height="600" fill="url(#grain)"/>
+
+  <g stroke="#d7dbe0" stroke-opacity="0.2" stroke-width="6" stroke-linecap="round">
+    <path d="M120 60 V540"/>
+    <path d="M680 60 V540"/>
+  </g>
+  <path d="M400 40 V104 M400 150 V214" stroke="#e4e7ec" stroke-opacity="0.24" stroke-width="9" stroke-linecap="round"/>
+  <path d="M400 400 V464 M400 510 V570" stroke="#e4e7ec" stroke-opacity="0.24" stroke-width="9" stroke-linecap="round"/>
+
+  <circle cx="400" cy="300" r="118" fill="url(#cover)" stroke="#5b616a" stroke-width="10"/>
+  <circle cx="400" cy="300" r="96" fill="#2a2e34" stroke="#464c54" stroke-width="4"/>
+  <circle cx="400" cy="300" r="70" fill="none" stroke="#4a5058" stroke-width="4"/>
+  <circle cx="400" cy="300" r="44" fill="none" stroke="#4a5058" stroke-width="4"/>
+  <g fill="#565c65">
+    <circle cx="400" cy="212" r="7"/>
+    <circle cx="400" cy="388" r="7"/>
+    <circle cx="312" cy="300" r="7"/>
+    <circle cx="488" cy="300" r="7"/>
+    <circle cx="338" cy="238" r="7"/>
+    <circle cx="462" cy="238" r="7"/>
+    <circle cx="338" cy="362" r="7"/>
+    <circle cx="462" cy="362" r="7"/>
+  </g>
+
+  <circle cx="400" cy="300" r="140" fill="none" stroke="#34d399" stroke-width="2.5" stroke-dasharray="12 9" stroke-opacity="0.72"/>
+
+  <rect width="800" height="600" fill="url(#vignette)"/>
+
+  <text x="36" y="488" fill="#cbd5e1" fill-opacity="0.55" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" letter-spacing="5">CONTOH</text>
+</svg>

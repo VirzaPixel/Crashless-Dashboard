@@ -89,3 +89,5 @@ Desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+supabase/
