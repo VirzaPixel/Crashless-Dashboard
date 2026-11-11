@@ -194,7 +194,7 @@ export function useRoadDamages() {
     }
   }, [updateWorkflow]);
 
-  const markAsFixed = useCallback(async (id, { files, fixedAt, repairNotes }) => {
+  const markAsFixed = useCallback(async (id, { files, fixedAt, repairNotes, onStage }) => {
     setLoading(true);
     setError(null);
     try {
@@ -203,7 +203,7 @@ export function useRoadDamages() {
       }
 
       const photoUrls = await Promise.all(
-        Array.from(files).slice(0, 3).map(uploadPhoto),
+        Array.from(files).slice(0, 3).map((file) => uploadPhoto(file, onStage)),
       );
 
       if (photoUrls.some((url) => !url)) {

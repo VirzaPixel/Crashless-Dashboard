@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
-  ComposedChart, Area, PieChart, Pie, ResponsiveContainer, ReferenceLine, ReferenceDot, Tooltip,
+  ComposedChart, Area, PieChart, Pie, ResponsiveContainer, Tooltip,
 } from 'recharts';
 import { getDamageTypeLabel, getWorkflowStatusLabel } from '../../lib/roadDamage';
 import { useLanguage } from '../common/language';
+import { useTheme } from '../common/theme';
 import './AnalyticsCharts.css';
 
 const WORKFLOW_ORDER = ['pending', 'in_progress', 'fixed', 'verified', 'rejected'];
@@ -13,91 +14,85 @@ const DAMAGE_TYPE_ORDER = ['pothole', 'crack', 'manhole'];
 const THEME_PALETTES = {
   dark: {
     status: {
-      pending: '#f87171',      // Merah cerah
-      in_progress: '#fbbf24',  // Kuning/oranye
-      fixed: '#60a5fa',        // Biru muda
-      verified: '#34d399',     // Hijau cerah
-      rejected: '#94a3b8',     // Abu-abu
+      pending: '#e9edf3',      // Putih terang
+      in_progress: '#c2cad6',  // Abu terang
+      fixed: '#8b95a5',        // Abu sedang
+      verified: '#5c6675',     // Abu gelap
+      rejected: '#3a414d',     // Abu sangat gelap
     },
     types: {
-      pothole: '#f87171',
-      crack: '#60a5fa',
-      manhole: '#a78bfa',
+      pothole: '#e9edf3',
+      crack: '#8b95a5',
+      manhole: '#4a5260',
     },
     grid: '#262b33',
     axis: '#94a3b8',
     tooltipBg: '#14171c',
     tooltipBorder: '#374151',
-    lineIncoming: '#f87171',
-    lineResolved: '#34d399',
     tv: {
       grid: '#222834',
       axis: '#787b86',
       cross: '#5c6270',
-      line: '#26a69a',
-      areaTop: 'rgba(38, 166, 154, 0.30)',
-      areaBottom: 'rgba(38, 166, 154, 0)',
-      volume: '#2b3140',
+      chartLine: '#e9edf3',
       tooltipBg: '#1a1f2b',
       tooltipBorder: '#2a3140',
       text: '#d1d4dc',
-      dim: '#787b86',
     },
   },
   light: {
     status: {
-      pending: '#ef4444',
-      in_progress: '#f59e0b',
-      fixed: '#3b82f6',
-      verified: '#10b981',
-      rejected: '#64748b',
+      pending: '#111827',      // Abu gelap
+      in_progress: '#374151',
+      fixed: '#6b7280',
+      verified: '#9ca3af',
+      rejected: '#d1d5db',     // Abu sangat muda
     },
     types: {
-      pothole: '#ef4444',
-      crack: '#3b82f6',
-      manhole: '#8b5cf6',
+      pothole: '#111827',
+      crack: '#6b7280',
+      manhole: '#9ca3af',
     },
     grid: '#e5e7eb',
-    axis: '#475569',
+    axis: '#6b7280',
     tooltipBg: '#ffffff',
     tooltipBorder: '#cbd5e1',
-    lineIncoming: '#ef4444',
-    lineResolved: '#10b981',
     tv: {
-      grid: '#eff1f4',
+      grid: '#eef0f4',
       axis: '#787b86',
       cross: '#9598a1',
-      line: '#089981',
-      areaTop: 'rgba(8, 153, 129, 0.22)',
-      areaBottom: 'rgba(8, 153, 129, 0)',
-      volume: '#e4e9f0',
+      chartLine: '#111827',
       tooltipBg: '#ffffff',
       tooltipBorder: '#e0e3eb',
       text: '#131722',
-      dim: '#787b86',
     },
   },
 };
 
-const RANGES = [
-  { key: 'today', labelKey: 'timeRangeToday' },
-  { key: '7d', labelKey: 'timeRange7d' },
-  { key: '30d', labelKey: 'timeRange30d' },
-  { key: '90d', labelKey: 'timeRange90d' },
-  { key: 'year', labelKey: 'timeRangeYear' },
-  { key: 'all', labelKey: 'timeRangeAll' },
+const PRESETS = [
+  { key: '1d', labelKey: 'timeRange1d', days: 1, bucket: 'hour' },
+  { key: '1w', labelKey: 'timeRange1w', days: 7, bucket: 'day' },
+  { key: '1m', labelKey: 'timeRange1m', days: 30, bucket: 'day' },
+  { key: '1y', labelKey: 'timeRange1y', days: 365, bucket: 'month' },
+  { key: 'custom', labelKey: 'rangeCustom', bucket: null },
 ];
 
-function formatPeriodKey(date, range) {
+function toISODateInput(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatPeriodKey(date, bucket) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
 
-  if (range === 'today') {
+  if (bucket === 'hour') {
     const hour = String(date.getHours()).padStart(2, '0');
-    return `${hour}:00`;
+    return `${day}/${month} ${hour}:00`;
   }
-  if (range === '7d' || range === '30d') {
+  if (bucket === 'day') {
     return `${day}/${month}`;
   }
   return `${year}-${month}`;
@@ -105,35 +100,93 @@ function formatPeriodKey(date, range) {
 
 export function AnalyticsCharts({ damages }) {
   const { lang, t } = useLanguage();
-  const palette = THEME_PALETTES.dark;
-  const [timeRange, setTimeRange] = useState('30d');
-  const [hoverIndex, setHoverIndex] = useState(null);
-  const [pinnedIndex, setPinnedIndex] = useState(null);
-  const [pointer, setPointer] = useState(null);
+  const { theme } = useTheme();
+  const palette = THEME_PALETTES[theme] || THEME_PALETTES.dark;
+  const [timeRange, setTimeRange] = useState('1m');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const isCustom = timeRange === 'custom';
+
+  // Indikator geser (thumb) untuk kontrol rentang waktu — ukur posisi tombol aktif.
+  const groupRef = useRef(null);
+  const thumbRef = useRef(null);
+  const btnRefs = useRef({});
+
+  const moveThumb = useCallback(() => {
+    const thumb = thumbRef.current;
+    const btn = btnRefs.current[timeRange];
+    if (!thumb || !btn) return;
+    thumb.style.width = `${btn.offsetWidth}px`;
+    thumb.style.transform = `translateX(${btn.offsetLeft}px)`;
+    thumb.style.opacity = '1';
+  }, [timeRange]);
+
+  useLayoutEffect(() => {
+    moveThumb();
+    const group = groupRef.current;
+    if (!group || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(moveThumb);
+    ro.observe(group);
+    return () => ro.disconnect();
+  }, [moveThumb]);
+
+  // Saat pengguna pindah ke mode Custom dan tanggal belum diisi, isi default 7 hari terakhir.
+  // Dipanggil dari event handler (bukan effect) agar tidak memicu re-render berantai.
+  const prepareCustomDefaults = () => {
+    if (!startDate || !endDate) {
+      const now = new Date();
+      const weekAgo = new Date(now);
+      weekAgo.setUTCDate(now.getUTCDate() - 6);
+      setStartDate(toISODateInput(weekAgo));
+      setEndDate(toISODateInput(now));
+    }
+  };
+
+  const handleRangeSelect = (key) => {
+    if (key === 'custom') prepareCustomDefaults();
+    setTimeRange(key);
+  };
+
+  // Rentang aktif dalam UTC agar konsisten dengan created_at dari Supabase (ISO UTC).
+  // Mengembalikan null bila mode Custom aktif namun tanggal tidak valid → penyaringan kosong.
+  const activeRange = useMemo(() => {
+    if (isCustom) {
+      if (!startDate || !endDate) return null;
+      const start = new Date(`${startDate}T00:00:00Z`);
+      const end = new Date(`${endDate}T23:59:59.999Z`);
+      if (
+        Number.isNaN(start.getTime()) ||
+        Number.isNaN(end.getTime()) ||
+        start > end
+      ) {
+        return null;
+      }
+      const spanDays = Math.max(1, Math.ceil((end - start) / 86400000));
+      return {
+        start,
+        end,
+        bucket: spanDays <= 2 ? 'hour' : spanDays <= 62 ? 'day' : 'month',
+      };
+    }
+    const preset = PRESETS.find((p) => p.key === timeRange) || PRESETS[1];
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+    const start = new Date(end);
+    start.setUTCDate(end.getUTCDate() - (preset.days - 1));
+    start.setUTCHours(0, 0, 0, 0);
+    return { start, end, bucket: preset.bucket };
+  }, [timeRange, startDate, endDate, isCustom]);
 
   const filteredByRange = useMemo(() => {
-    if (timeRange === 'all') return damages;
-
-    const now = new Date();
-    const start = new Date();
-
-    if (timeRange === 'today') {
-      start.setHours(0, 0, 0, 0);
-    } else if (timeRange === '7d') {
-      start.setDate(now.getDate() - 7);
-    } else if (timeRange === '30d') {
-      start.setDate(now.getDate() - 30);
-    } else if (timeRange === '90d') {
-      start.setDate(now.getDate() - 90);
-    } else if (timeRange === 'year') {
-      start.setFullYear(now.getFullYear() - 1);
-    }
-
+    if (!activeRange) return [];
+    const { start, end } = activeRange;
     return damages.filter((d) => {
       const created = new Date(d.created_at);
-      return !Number.isNaN(created.getTime()) && created >= start && created <= now;
+      return (
+        !Number.isNaN(created.getTime()) && created >= start && created <= end
+      );
     });
-  }, [damages, timeRange]);
+  }, [damages, activeRange]);
 
   // Sebaran status eksklusif 5 status workflow resmi
   const statusData = useMemo(() => {
@@ -195,7 +248,7 @@ export function AnalyticsCharts({ damages }) {
       if (d.damage_type === 'no_damage') return;
       const date = new Date(d.created_at);
       if (Number.isNaN(date.getTime())) return;
-      const key = formatPeriodKey(date, timeRange);
+      const key = formatPeriodKey(date, activeRange.bucket);
       if (!buckets[key]) buckets[key] = { periode: key, masuk: 0, selesai: 0, rawTime: date.getTime() };
       buckets[key].masuk += 1;
       if (['fixed', 'verified'].includes(d.workflow_status)) {
@@ -206,7 +259,7 @@ export function AnalyticsCharts({ damages }) {
     return Object.values(buckets)
       .sort((a, b) => a.rawTime - b.rawTime)
       .map(({ periode, masuk, selesai }) => ({ periode, masuk, selesai }));
-  }, [filteredByRange, timeRange]);
+  }, [filteredByRange, activeRange.bucket]);
 
   // Ringkasan tren
   const trendSummary = useMemo(() => {
@@ -221,55 +274,21 @@ export function AnalyticsCharts({ damages }) {
 
   const labelStep = Math.max(1, Math.ceil(trendData.length / 8));
 
-  const trendChartData = useMemo(
-    () => trendData.map((item) => ({
+  const trendChartData = useMemo(() => (
+    trendData.map((item) => ({
       ...item,
       rate: item.masuk > 0 ? (item.selesai / item.masuk) * 100 : 0,
-    })),
-    [trendData],
-  );
+    }))
+  ), [trendData]);
 
-  const volumeMax = useMemo(() => {
-    const max = Math.max(1, ...trendChartData.map((item) => item.masuk));
-    return max * 4.5;
+  // Nilai rata-rata rate + arah tren (banding ujung-ujung rate).
+  const trendMeta = useMemo(() => {
+    if (trendChartData.length === 0) return { avg: 0, rising: null };
+    const avg = trendChartData.reduce((acc, item) => acc + item.rate, 0) / trendChartData.length;
+    const first = trendChartData[0].rate ?? 0;
+    const last = trendChartData[trendChartData.length - 1].rate ?? 0;
+    return { avg, rising: last > first + 0.5 ? true : last < first - 0.5 ? false : null };
   }, [trendChartData]);
-
-  const crosshairIndex = hoverIndex ?? pinnedIndex;
-  const activeTrend = crosshairIndex !== null
-    ? trendChartData[crosshairIndex] ?? null
-    : trendChartData[trendChartData.length - 1] ?? null;
-  const showCrosshair = crosshairIndex !== null && activeTrend !== null;
-  const isPinned = pinnedIndex !== null && hoverIndex === null;
-  const tooltipTrend = hoverIndex !== null ? trendChartData[hoverIndex] ?? null : null;
-
-  const handleChartMove = (event) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const plotWidth = Math.max(1, rect.width - 42);
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-
-    if (x < 0 || x > plotWidth) {
-      setHoverIndex(null);
-      setPointer(null);
-      return;
-    }
-
-    const index = Math.min(
-      trendChartData.length - 1,
-      Math.max(0, Math.floor((x / plotWidth) * trendChartData.length)),
-    );
-    if (index !== hoverIndex) setHoverIndex(index);
-    setPointer({ x, y, width: rect.width, height: rect.height });
-  };
-
-  useEffect(() => {
-    if (pinnedIndex === null) return undefined;
-    const handleKey = (event) => {
-      if (event.key === 'Escape') setPinnedIndex(null);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [pinnedIndex]);
 
   if (damages.length === 0) return null;
 
@@ -281,21 +300,50 @@ export function AnalyticsCharts({ damages }) {
           <h2>{t('analyticsTitle')}</h2>
         </div>
 
-        <div className="range-button-group" role="group" aria-label="Rentang Waktu">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              className={`range-pill ${timeRange === r.key ? 'active' : ''}`}
-              onClick={() => {
-                setTimeRange(r.key);
-                setHoverIndex(null);
-                setPinnedIndex(null);
-              }}
-            >
-              {t(r.labelKey)}
-            </button>
-          ))}
+        <div className="analytics-range">
+          {isCustom && (
+            <div className="custom-range-inline">
+              <input
+                type="date"
+                aria-label={t('rangeFrom')}
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <input
+                type="date"
+                aria-label={t('rangeTo')}
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div
+            className="range-button-group"
+            role="group"
+            aria-label={t('rangeGroupLabel')}
+            ref={groupRef}
+          >
+            <span className="range-thumb" ref={thumbRef} aria-hidden="true" />
+            {PRESETS.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                aria-pressed={timeRange === r.key}
+                ref={(el) => { btnRefs.current[r.key] = el; }}
+                className={`range-pill ${timeRange === r.key ? 'active' : ''}`}
+                onClick={() => handleRangeSelect(r.key)}
+              >
+                {t(r.labelKey)}
+              </button>
+            ))}
+          </div>
+
+          {isCustom && (!startDate || !endDate || startDate > endDate) ? (
+            <span className="date-error">{t('rangeInvalid')}</span>
+          ) : null}
         </div>
       </div>
 
@@ -404,19 +452,21 @@ export function AnalyticsCharts({ damages }) {
           </div>
         </article>
 
-        <article
-          className="chart-card chart-wide trend-card"
-          style={{
-            '--tv-line': palette.tv.line,
-            '--tv-volume': palette.tv.volume,
-            '--tv-text': palette.tv.text,
-            '--tv-dim': palette.tv.dim,
-          }}
-        >
+        <article className="chart-card chart-wide trend-card">
           <div className="trend-head">
             <div className="trend-head-main">
-              <h3>{t('chartTrend')}</h3>
-              <p className="trend-subtitle">{t('trendSubtitle')}</p>
+              <p className="trend-eyebrow">
+                <span className="trend-eyebrow-icon" aria-hidden="true">↗</span>
+                {t('chartTrend')}
+              </p>
+              <div className="trend-hero">
+                <strong className="trend-hero-value">{trendSummary.completion}%</strong>
+                <span className={`trend-hero-badge ${trendMeta.rising === true ? 'up' : trendMeta.rising === false ? 'down' : 'flat'}`}>
+                  {trendMeta.rising === true ? '▲' : trendMeta.rising === false ? '▼' : '—'}
+                  {' '}
+                  {Math.round(trendMeta.avg)}%
+                </span>
+              </div>
             </div>
 
             <div className="trend-summary" aria-label={t('chartTrend')}>
@@ -428,10 +478,6 @@ export function AnalyticsCharts({ damages }) {
                 <span className="trend-metric-label">{t('completedReport')}</span>
                 <strong className="trend-metric-value">{trendSummary.selesai}</strong>
               </div>
-              <div className="trend-metric trend-metric-accent" style={{ '--tv-line': palette.tv.line }}>
-                <span className="trend-metric-label">{t('statCompletionRate')}</span>
-                <strong className="trend-metric-value">{trendSummary.completion}%</strong>
-              </div>
             </div>
           </div>
 
@@ -439,168 +485,70 @@ export function AnalyticsCharts({ damages }) {
             {trendChartData.length === 0 ? (
               <div className="trend-empty">{t('trendEmpty')}</div>
             ) : (
-              <>
-                <div className="tv-legend" aria-live="polite">
-                  <span className="tv-legend-date">{activeTrend?.periode ?? ''}</span>
-                  {isPinned ? (
-                    <span className="tv-pin">{t('trendPinned')}</span>
-                  ) : null}
-                  <span className="tv-legend-item">
-                    <i className="tv-legend-mark tv-legend-mark-line" />
-                    {t('statCompletionRate')}
-                    <strong>{Math.round(activeTrend?.rate ?? 0)}%</strong>
-                  </span>
-                  <span className="tv-legend-item">
-                    <i className="tv-legend-mark tv-legend-mark-bar" />
-                    {t('incomingReport')}
-                    <strong>{activeTrend?.masuk ?? 0}</strong>
-                  </span>
-                  <span className="tv-legend-item">
-                    {t('completedReport')}
-                    <strong>{activeTrend?.selesai ?? 0}</strong>
-                  </span>
-                </div>
-
-                <div
-                  className="tv-plot"
-                  onMouseMove={handleChartMove}
-                  onMouseLeave={() => {
-                    setHoverIndex(null);
-                    setPointer(null);
-                  }}
-                  onClick={() => {
-                    if (hoverIndex !== null) {
-                      setPinnedIndex((current) => (current === hoverIndex ? null : hoverIndex));
-                    }
-                  }}
-                >
-                {tooltipTrend && pointer ? (
-                  <div
-                    className="tv-tooltip"
-                    style={{
-                      left: Math.min(pointer.x + 16, Math.max(8, pointer.width - 178)),
-                      top: Math.min(Math.max(pointer.y - 18, 8), Math.max(8, pointer.height - 150)),
-                      background: palette.tv.tooltipBg,
-                      borderColor: palette.tv.tooltipBorder,
-                      color: palette.tv.text,
-                    }}
-                  >
-                    <p className="tv-tooltip-date">{tooltipTrend.periode}</p>
-                    <div className="tv-tooltip-row">
-                      <span>{t('incomingReport')}</span>
-                      <strong>{tooltipTrend.masuk}</strong>
-                    </div>
-                    <div className="tv-tooltip-row">
-                      <span>{t('completedReport')}</span>
-                      <strong>{tooltipTrend.selesai}</strong>
-                    </div>
-                    <div className="tv-tooltip-row">
-                      <span>{t('statCompletionRate')}</span>
-                      <strong style={{ color: palette.tv.line }}>
-                        {Math.round(tooltipTrend.rate)}%
-                      </strong>
-                    </div>
-                    <div className="tv-tooltip-row tv-tooltip-open">
-                      <span>{t('trendOpen')}</span>
-                      <strong>{Math.max(tooltipTrend.masuk - tooltipTrend.selesai, 0)}</strong>
-                    </div>
-                  </div>
-                ) : null}
-
-                <ResponsiveContainer width="100%" height={248}>
+              <ResponsiveContainer width="100%" height={224}>
                   <ComposedChart
-                    data={trendChartData}
-                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="tvAreaFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={palette.tv.line} stopOpacity={0.3} />
-                        <stop offset="100%" stopColor={palette.tv.line} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      stroke={palette.tv.grid}
-                      strokeDasharray="3 3"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="periode"
-                      interval={labelStep - 1}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.tv.grid }}
-                      tickMargin={8}
-                      minTickGap={12}
-                      tick={{ fontSize: 10, fill: palette.tv.axis }}
-                    />
-                    <YAxis
-                      yAxisId="rate"
-                      orientation="right"
-                      domain={[0, 100]}
-                      ticks={[0, 50, 100]}
-                      width={42}
-                      axisLine={false}
-                      tickLine={false}
-                      tickMargin={6}
-                      tick={{ fontSize: 10, fill: palette.tv.axis }}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <YAxis yAxisId="volume" hide domain={[0, volumeMax]} />
-                    {showCrosshair ? (
-                      <>
-                        <ReferenceLine
-                          yAxisId="rate"
-                          y={activeTrend.rate}
-                          stroke={palette.tv.cross}
-                          strokeDasharray="4 4"
-                        />
-                        <ReferenceLine
-                          x={activeTrend.periode}
-                          stroke={palette.tv.cross}
-                          strokeDasharray="4 4"
-                        />
-                        <ReferenceDot
-                          yAxisId="rate"
-                          x={activeTrend.periode}
-                          y={activeTrend.rate}
-                          r={4}
-                          fill={palette.tv.line}
-                          stroke={palette.tv.tooltipBg}
-                          strokeWidth={2}
-                          isFront
-                        />
-                      </>
-                    ) : null}
-                    <Area
-                      yAxisId="rate"
-                      type="linear"
-                      dataKey="rate"
-                      stroke={palette.tv.line}
-                      strokeWidth={2}
-                      fill="url(#tvAreaFill)"
-                      dot={false}
-                      activeDot={{
-                        r: 4,
-                        fill: palette.tv.line,
-                        stroke: palette.tv.tooltipBg,
-                        strokeWidth: 2,
-                      }}
-                      isAnimationActive={false}
-                    />
-                    <Bar
-                      yAxisId="volume"
-                      dataKey="masuk"
-                      fill={palette.tv.volume}
-                      maxBarSize={9}
-                      radius={[1, 1, 0, 0]}
-                      isAnimationActive={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-                </div>
-                <p className="trend-hint">{t('trendHint')}</p>
-              </>
+                  data={trendChartData}
+                  margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="tvAreaFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={palette.tv.chartLine} stopOpacity={0.22} />
+                      <stop offset="100%" stopColor={palette.tv.chartLine} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke={palette.tv.grid} vertical={false} />
+                  <XAxis
+                    dataKey="periode"
+                    interval={labelStep - 1}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    minTickGap={12}
+                    tick={{ fontSize: 11, fill: palette.tv.axis }}
+                  />
+                  <YAxis
+                    yAxisId="rate"
+                    orientation="right"
+                    domain={[0, 120]}
+                    ticks={[0, 50, 100]}
+                    width={38}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 10, fill: palette.tv.axis }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: palette.tv.cross, strokeDasharray: '4 4' }}
+                    contentStyle={{
+                      background: palette.tv.tooltipBg,
+                      border: `1px solid ${palette.tv.tooltipBorder}`,
+                      borderRadius: 8,
+                      color: palette.tv.text,
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: palette.tv.text, fontWeight: 700, marginBottom: 4 }}
+                    formatter={(value, name) => {
+                      if (name === 'rate') return [`${Math.round(value)}%`, t('statCompletionRate')];
+                      return [value, name];
+                    }}
+                  />
+                  <Area
+                    yAxisId="rate"
+                    type="monotone"
+                    dataKey="rate"
+                    name="rate"
+                    stroke={palette.tv.chartLine}
+                    strokeWidth={2.5}
+                    fill="url(#tvAreaFill)"
+                    dot={false}
+                    activeDot={{ r: 5, fill: palette.tv.chartLine, stroke: palette.tv.tooltipBg, strokeWidth: 2 }}
+                    isAnimationActive={false}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
             )}
           </div>
+
         </article>
       </div>
     </section>
