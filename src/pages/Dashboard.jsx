@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, SlidersHorizontal, RefreshCw, MapPinned, ArrowUpRight, LayoutGrid, Map as MapIcon, BarChart3 } from 'lucide-react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import { useRoadDamages } from '../hooks/useRoadDamages';
 import { StatsPanel } from '../components/dashboard/StatsPanel';
 import { DamageCard } from '../components/dashboard/DamageCard';
 import { ClusterLayer } from '../components/dashboard/GlobalMap';
+import { NotificationBell } from '../components/dashboard/NotificationBell';
 import { MAP_LEGEND } from '../components/dashboard/mapLegend';
 import { AnalyticsCharts } from '../components/dashboard/AnalyticsCharts';
-import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
+import { ThemeToggle, LanguageToggle, ProfileButton } from '../components/common/ThemeToggle';
 import { useLanguage } from '../components/common/language';
 import { supabase } from '../lib/supabase';
 import crashlessLogo from '../assets/crashless-logo.png';
@@ -21,20 +22,6 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 import './Dashboard.css';
 
-const PRIORITY_ORDER = ['critical', 'high', 'medium', 'low'];
-
-function compareDamages(a, b) {
-  const priorityDifference =
-    PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
-  if (priorityDifference !== 0) return priorityDifference;
-  if (a.is_overdue !== b.is_overdue) return a.is_overdue ? -1 : 1;
-
-  const aCreated = new Date(a.created_at).getTime();
-  const bCreated = new Date(b.created_at).getTime();
-  return (Number.isFinite(bCreated) ? bCreated : 0) -
-    (Number.isFinite(aCreated) ? aCreated : 0);
-}
-
 export function Dashboard() {
   const { damages, loading, error, fetchDamages } = useRoadDamages();
   const { lang, t } = useLanguage();
@@ -43,6 +30,8 @@ export function Dashboard() {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
+  const [filterUser, setFilterUser] = useState('all');
+  const [sortOrder, setSortOrder] = useState('latest');
   const [realtimeActive, setRealtimeActive] = useState(false);
   const [view, setView] = useState('list');
 
@@ -95,6 +84,18 @@ export function Dashboard() {
     };
   }, [fetchDamages, lang]);
 
+  useEffect(() => {
+    if (realtimeActive) return undefined;
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchDamages();
+      }
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [realtimeActive, fetchDamages]);
+
   const filteredDamages = damages
     .filter((item) => {
       const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -109,6 +110,8 @@ export function Dashboard() {
         getPriorityLabel(item.priority),
         item.workflow_status,
         getWorkflowStatusLabel(item.workflow_status),
+        item.reporter_email,
+        item.user_id,
       ]
         .filter((value) => value !== null && value !== undefined)
         .join(' ')
@@ -120,22 +123,44 @@ export function Dashboard() {
         filterStatus === 'all' ? true : item.workflow_status === filterStatus;
       const matchesPriority =
         filterPriority === 'all' ? true : item.priority === filterPriority;
+      const matchesUser =
+        filterUser === 'all' ? true : item.user_id === filterUser;
 
-      return matchesSearch && matchesType && matchesStatus && matchesPriority;
+      return matchesSearch && matchesType && matchesStatus && matchesPriority && matchesUser;
     })
-    .sort(compareDamages);
+    .sort((a, b) => {
+      const aTime = new Date(a.created_at).getTime() || 0;
+      const bTime = new Date(b.created_at).getTime() || 0;
+      return sortOrder === 'oldest' ? aTime - bTime : bTime - aTime;
+    });
+
+  const reporterOptions = useMemo(() => {
+    const map = new Map();
+    damages.forEach((item) => {
+      if (!item.user_id) return;
+      const label = item.reporter_email || `Pelapor ${item.user_id.slice(0, 8)}`;
+      if (!map.has(item.user_id)) map.set(item.user_id, label);
+    });
+    return [...map.entries()]
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [damages]);
 
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
     filterType !== 'all' ||
     filterStatus !== 'all' ||
-    filterPriority !== 'all';
+    filterPriority !== 'all' ||
+    filterUser !== 'all' ||
+    sortOrder !== 'latest';
 
   const clearFilters = () => {
     setSearchQuery('');
     setFilterType('all');
     setFilterStatus('all');
     setFilterPriority('all');
+    setFilterUser('all');
+    setSortOrder('latest');
   };
 
   return (
@@ -159,9 +184,11 @@ export function Dashboard() {
           </div>
         </div>
         <div className="header-actions">
-          <div className={`realtime-badge ${realtimeActive ? 'active' : ''}`} title={realtimeActive ? t('realtimeActive') : t('realtimeConnecting')}>
+          <div className={`realtime-badge ${realtimeActive ? 'active' : 'polling'}`} title={realtimeActive ? t('realtimeActive') : t('realtimePolling')}>
             <span className="realtime-indicator" aria-hidden="true" />
           </div>
+
+          <NotificationBell />
 
           <button
             className="header-icon-btn refresh-icon-btn"
@@ -174,6 +201,7 @@ export function Dashboard() {
           </button>
 
           <div className="header-controls">
+            <ProfileButton />
             <LanguageToggle />
             <ThemeToggle />
           </div>
@@ -311,6 +339,28 @@ export function Dashboard() {
               <option value="high">{t('priorityHigh')}</option>
               <option value="medium">{t('priorityMedium')}</option>
               <option value="low">{t('priorityLow')}</option>
+            </select>
+            <select
+              value={filterUser}
+              onChange={(event) => setFilterUser(event.target.value)}
+              className="filter-select"
+              aria-label={t('filterAllReporters')}
+              title={t('filterAllReporters')}
+            >
+              <option value="all">{t('filterAllReporters')}</option>
+              {reporterOptions.map((reporter) => (
+                <option key={reporter.id} value={reporter.id}>{reporter.label}</option>
+              ))}
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              className="filter-select"
+              aria-label={t('filterSortOrder')}
+              title={t('filterSortOrder')}
+            >
+              <option value="latest">{t('filterLatest')}</option>
+              <option value="oldest">{t('filterOldest')}</option>
             </select>
           </div>
         </div>

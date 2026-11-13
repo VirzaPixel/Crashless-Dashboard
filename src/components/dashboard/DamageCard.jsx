@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Percent, MapPin, Clock3 } from 'lucide-react';
+import { Calendar, Percent, MapPin, Clock3, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId, enUS as localeEn } from 'date-fns/locale';
 import { reverseGeocode } from '../../lib/geocoding';
@@ -21,23 +21,28 @@ const WORKFLOW_STEPS = ['pending', 'in_progress', 'fixed', 'verified'];
 export function DamageCard({ damage }) {
   const navigate = useNavigate();
   const { lang, t } = useLanguage();
-  const [address, setAddress] = useState(t('loadingLocation'));
+  const hasDbAddress = Boolean(damage.address && damage.address.trim());
+  const [geocodedAddress, setGeocodedAddress] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!hasValidCoordinates(damage)) {
+    if (hasDbAddress || !hasValidCoordinates(damage)) {
       return undefined;
     }
 
     reverseGeocode(damage.latitude, damage.longitude).then((addr) => {
-      if (isMounted) setAddress(addr);
+      if (isMounted) setGeocodedAddress(addr);
     });
 
     return () => {
       isMounted = false;
     };
-  }, [damage]);
+  }, [damage, hasDbAddress]);
+
+  const displayAddress = hasDbAddress
+    ? damage.address
+    : geocodedAddress || (hasValidCoordinates(damage) ? t('loadingLocation') : t('noLocation'));
 
   const getConfidenceColor = (score) => {
     if (!Number.isFinite(score)) return 'var(--muted)';
@@ -131,12 +136,22 @@ export function DamageCard({ damage }) {
         )}
         <div className="info-row location-row">
           <MapPin size={16} className="info-icon" />
+          <span className="info-text">{displayAddress}</span>
+        </div>
+        <div className="info-row reporter-row">
+          <User size={16} className="info-icon" />
           <span className="info-text">
-            {hasValidCoordinates(damage)
-              ? address
-              : damage.address || t('noLocation')}
+            {t('reporterLabel')}: <strong>{damage.reporter_email || (lang === 'en' ? 'User' : 'Pengguna')}</strong>
           </span>
         </div>
+        {damage.assigned_operator_id && (
+          <div className="info-row">
+            <span className="info-text">
+              {lang === 'en' ? 'Handled by operator ' : 'Dikerjakan oleh operator '}
+              <strong>{damage.assigned_operator_name || 'Operator'}</strong>
+            </span>
+          </div>
+        )}
 
         <div className="info-row time-row">
           <Calendar size={16} className="info-icon" />

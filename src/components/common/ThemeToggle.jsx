@@ -1,7 +1,24 @@
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from './theme';
 import { useLanguage } from './language';
 import './ThemeToggle.css';
+
+export function ProfileButton({ className = '' }) {
+  const navigate = useNavigate();
+
+  return (
+    <button
+      className={`header-icon-btn ${className}`}
+      type="button"
+      onClick={() => navigate('/profile')}
+      aria-label="Profil & Rating"
+      title="Profil & Rating"
+    >
+      <User size={16} aria-hidden="true" />
+    </button>
+  );
+}
 
 export function ThemeToggle({ className = '' }) {
   const { theme, toggleTheme } = useTheme();

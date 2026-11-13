@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION public.create_operator_by_superadmin(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, pg_temp
+SET search_path = public, auth, extensions, pg_temp
 AS $$
 DECLARE
   caller_role text;
@@ -74,17 +74,31 @@ BEGIN
     '', '', ''
   );
 
-  -- Insert ke auth.identities
-  INSERT INTO auth.identities (
-    id, user_id, provider_id, identity_data, provider,
-    last_sign_in_at, created_at, updated_at
-  ) VALUES (
-    gen_random_uuid(), v_user_id, v_user_id::text,
-    jsonb_build_object('sub', v_user_id::text, 'email', clean_email),
-    'email',
-    now(), now(), now()
-  )
-  ON CONFLICT (provider_id, provider) DO UPDATE SET updated_at = now();
+  -- Insert ke auth.identities dengan fallback skema
+  BEGIN
+    INSERT INTO auth.identities (
+      id, user_id, provider_id, identity_data, provider,
+      last_sign_in_at, created_at, updated_at
+    ) VALUES (
+      gen_random_uuid(), v_user_id, v_user_id::text,
+      jsonb_build_object('sub', v_user_id::text, 'email', clean_email),
+      'email',
+      now(), now(), now()
+    )
+    ON CONFLICT (provider_id, provider) DO UPDATE SET updated_at = now();
+  EXCEPTION
+    WHEN undefined_column THEN
+      INSERT INTO auth.identities (
+        id, user_id, identity_data, provider,
+        last_sign_in_at, created_at, updated_at
+      ) VALUES (
+        v_user_id::text, v_user_id,
+        jsonb_build_object('sub', v_user_id::text, 'email', clean_email),
+        'email',
+        now(), now(), now()
+      )
+      ON CONFLICT (id, provider) DO NOTHING;
+  END;
 
   -- Cermin profil ke public.user_profiles
   INSERT INTO public.user_profiles (id, email, role, is_active)
@@ -107,7 +121,7 @@ CREATE OR REPLACE FUNCTION public.delete_user_by_superadmin(target_user_id uuid)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, pg_temp
+SET search_path = public, auth, extensions, pg_temp
 AS $$
 DECLARE
   caller_role text;
@@ -148,3 +162,5 @@ $$;
 
 REVOKE ALL ON FUNCTION public.delete_user_by_superadmin(uuid) FROM anon, public;
 GRANT EXECUTE ON FUNCTION public.delete_user_by_superadmin(uuid) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';

@@ -67,3 +67,5 @@ $$;
 
 REVOKE ALL ON FUNCTION public.update_user_role_by_superadmin(uuid, text) FROM anon, public;
 GRANT  EXECUTE ON FUNCTION public.update_user_role_by_superadmin(uuid, text) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';

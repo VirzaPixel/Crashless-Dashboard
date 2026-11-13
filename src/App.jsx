@@ -5,6 +5,8 @@ import { LanguageProvider } from './components/common/LanguageContext';
 import { Dashboard } from './pages/Dashboard';
 import { DamageDetail } from './pages/DamageDetail';
 import { Operators } from './pages/Operators';
+import { Support } from './pages/Support';
+import { Profile } from './pages/Profile';
 import { useRole, isSuperadmin } from './lib/roles';
 import { supabaseConfigError } from './lib/supabase';
 import './styles/index.css';
@@ -58,6 +60,8 @@ function App() {
                 <Route path="/" element={<OperatorRoute><Dashboard /></OperatorRoute>} />
                 <Route path="/damage/:id" element={<OperatorRoute><DamageDetail /></OperatorRoute>} />
                 <Route path="/operators" element={<SuperadminRoute><Operators /></SuperadminRoute>} />
+                <Route path="/support" element={<SuperadminRoute><Support /></SuperadminRoute>} />
+                <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AuthGate>

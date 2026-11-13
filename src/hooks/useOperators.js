@@ -13,17 +13,57 @@ export function useOperators() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase
+      const baseColumns = 'id, email, role, domicile, is_active, created_at, updated_at';
+      const ratingColumns = `${baseColumns}, rating_average, rating_count, suspension_stage, suspended_until, is_banned`;
+      let { data, error: fetchError } = await supabase
         .from('user_profiles')
-        .select('id, email, role, is_active, created_at, updated_at')
+        .select(ratingColumns)
         .order('created_at', { ascending: false });
+      const ratingSchemaMissing = fetchError && /column|schema cache|does not exist/i.test(fetchError.message || '');
+      if (ratingSchemaMissing) {
+        const fallback = await supabase
+          .from('user_profiles')
+          .select('id, email, role, is_active, created_at, updated_at')
+          .order('created_at', { ascending: false });
+        data = fallback.data;
+        fetchError = fallback.error;
+      }
       if (fetchError) {
         if (/relation|does not exist|schema cache/i.test(fetchError.message || '')) {
           throw new Error(MISSING_TABLE_MESSAGE);
         }
         throw fetchError;
       }
-      setOperators(data || []);
+      const [reviewsResult, scoreResult] = await Promise.all([
+        supabase.from('damage_reviews').select('operator_id,stars'),
+        supabase.from('operator_score_events').select('operator_id,score_delta,dispute_status'),
+      ]);
+      // Skor bersifat pelengkap: halaman operator tetap tampil walau migrasi
+      // operasional belum dijalankan.
+      const reviews = reviewsResult.error ? [] : (reviewsResult.data || []);
+      const scoreEvents = scoreResult.error ? [] : (scoreResult.data || []);
+      const aggregates = (reviews || []).reduce((result, review) => {
+        const entry = result.get(review.operator_id) || { total: 0, count: 0 };
+        entry.total += review.stars;
+        entry.count += 1;
+        result.set(review.operator_id, entry);
+        return result;
+      }, new Map());
+      const compliance = (scoreEvents || []).reduce((result, event) => {
+        if (event.dispute_status === 'reversed') return result;
+        result.set(event.operator_id, (result.get(event.operator_id) || 100) + Number(event.score_delta || 0));
+        return result;
+      }, new Map());
+      setOperators((data || []).map((operator) => {
+        const rating = aggregates.get(operator.id) || { total: 0, count: 0 };
+        const hasStoredRating = operator.rating_average !== undefined && operator.rating_average !== null;
+        return {
+          ...operator,
+          rating_average: hasStoredRating ? Number(operator.rating_average) : (rating.count ? rating.total / rating.count : 5),
+          rating_count: operator.rating_count ?? rating.count,
+          sla_score: Math.max(0, Math.min(100, compliance.get(operator.id) ?? 100)),
+        };
+      }));
     } catch (err) {
       setError(err.message);
       console.error('Error fetching operators:', err);
@@ -64,7 +104,7 @@ export function useOperators() {
       .from('user_profiles')
       .update({ is_active: isActive })
       .eq('id', targetId)
-      .select('id, email, role, is_active, created_at, updated_at')
+      .select('id, email, role, is_active, created_at, updated_at, rating_average, rating_count, suspension_stage, suspended_until, is_banned')
       .maybeSingle();
     if (updateError) {
       if (/relation|does not exist|schema cache/i.test(updateError.message || '')) {
@@ -97,12 +137,22 @@ export function useOperators() {
     return true;
   }, []);
 
-  const createOperator = useCallback(async (newEmail, newPassword, newRole) => {
-    const { error: rpcError } = await supabase.rpc('create_operator_by_superadmin', {
+  const createOperator = useCallback(async (newEmail, newPassword, newRole, newDomicile = '') => {
+    let { error: rpcError } = await supabase.rpc('create_operator_by_superadmin', {
       new_email: newEmail,
       new_password: newPassword,
       new_role: newRole,
+      new_domicile: newDomicile?.trim() || null,
     });
+
+    if (rpcError && /function.*does not exist|parameter/i.test(rpcError.message || '')) {
+      const fallback = await supabase.rpc('create_operator_by_superadmin', {
+        new_email: newEmail,
+        new_password: newPassword,
+        new_role: newRole,
+      });
+      rpcError = fallback.error;
+    }
 
     if (rpcError) {
       throw new Error(
@@ -114,6 +164,33 @@ export function useOperators() {
     return true;
   }, [fetchOperators]);
 
+  const updateDomicile = useCallback(async (targetId, newDomicile) => {
+    const clean = newDomicile?.trim() || null;
+    let { error: rpcError } = await supabase.rpc('update_user_domicile', {
+      target_user_id: targetId,
+      new_domicile: clean,
+    });
+
+    if (rpcError) {
+      const fallback = await supabase
+        .from('user_profiles')
+        .update({ domicile: clean })
+        .eq('id', targetId);
+      rpcError = fallback.error;
+    }
+
+    if (rpcError) {
+      throw new Error(
+        'Pembaruan domisili gagal disimpan. ' + (rpcError.message || 'Hubungi administrator sistem.'),
+      );
+    }
+
+    setOperators((prev) =>
+      prev.map((op) => (op.id === targetId ? { ...op, domicile: clean } : op)),
+    );
+    return true;
+  }, []);
+
   return {
     operators,
     loading,
@@ -123,6 +200,7 @@ export function useOperators() {
     setActive,
     deleteOperator,
     createOperator,
+    updateDomicile,
     missingTable,
   };
 }

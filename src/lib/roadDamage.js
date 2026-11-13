@@ -11,6 +11,7 @@ const WORKFLOW_LABELS = {
   fixed: 'Menunggu Verifikasi',
   verified: 'Terverifikasi',
   rejected: 'Ditolak',
+  cancelled: 'Dibatalkan Otomatis',
 };
 
 const PRIORITY_LABELS = {
@@ -135,6 +136,7 @@ export function getWorkflowStatusLabel(status, lang = 'id') {
       fixed: 'Awaiting Verification',
       verified: 'Verified',
       rejected: 'Rejected',
+      cancelled: 'Auto-Cancelled',
     };
     return enStatuses[status] ?? 'Unknown Status';
   }
@@ -165,7 +167,7 @@ export function getPriorityLabel(priority, lang = 'id') {
 }
 
 export function isOverdue(damage, now = new Date()) {
-  if (['verified', 'rejected'].includes(damage?.workflow_status)) {
+  if (['verified', 'rejected', 'cancelled'].includes(damage?.workflow_status)) {
     return false;
   }
 

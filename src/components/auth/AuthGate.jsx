@@ -19,17 +19,27 @@ function clearStoredBrowserSession() {
   window.sessionStorage.removeItem(`${supabaseAuthStorageKey}-code-verifier`);
 }
 
-async function fetchProfileActive(userId) {
+async function fetchAccountStatus(userId) {
+  try {
+    const { data, error } = await supabase.rpc('crashless_account_status');
+    if (!error && data?.[0]) {
+      return { blocked: Boolean(data[0].blocked), message: data[0].message || INACTIVE_MESSAGE };
+    }
+  } catch {
+    // Migrasi belum tersedia; pakai pemeriksaan is_active di bawah.
+  }
+
   try {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('is_active')
       .eq('id', userId)
       .maybeSingle();
-    if (error) return null;
-    return data?.is_active ?? null;
+    if (error) return { blocked: false, message: '' };
+    if (data?.is_active === false) return { blocked: true, message: INACTIVE_MESSAGE };
+    return { blocked: false, message: '' };
   } catch {
-    return null;
+    return { blocked: false, message: '' };
   }
 }
 
@@ -64,9 +74,9 @@ export function AuthGate({ children }) {
           }, 0);
         }
       } else if (nextSession) {
-        const active = await fetchProfileActive(nextSession.user.id);
+        const accountStatus = await fetchAccountStatus(nextSession.user.id);
         if (!mounted) return;
-        if (active === false) {
+        if (accountStatus.blocked) {
           try {
             await supabase.auth.signOut({ scope: 'local' });
           } catch {
@@ -74,7 +84,7 @@ export function AuthGate({ children }) {
           }
           clearStoredBrowserSession();
           setSession(null);
-          setError(INACTIVE_MESSAGE);
+          setError(accountStatus.message || INACTIVE_MESSAGE);
         } else {
           setSession(nextSession);
         }
@@ -92,7 +102,38 @@ export function AuthGate({ children }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return undefined;
+
+    let active = true;
+    const channel = supabase
+      .channel(`account-status-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'user_profiles', filter: `id=eq.${userId}` },
+        async () => {
+          const status = await fetchAccountStatus(userId);
+          if (!active || !status.blocked) return;
+          try {
+            await supabase.auth.signOut({ scope: 'local' });
+          } catch {
+            // Sesi lokal tetap dibersihkan di bawah.
+          }
+          clearStoredBrowserSession();
+          setSession(null);
+          setError(status.message || INACTIVE_MESSAGE);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
 
   const clearBrowserSession = () => {
     window.sessionStorage.removeItem(supabaseAuthStorageKey);
@@ -122,15 +163,15 @@ export function AuthGate({ children }) {
         setError(ACCESS_DENIED_MESSAGE);
         return;
       }
-      const active = await fetchProfileActive(data.session.user.id);
-      if (active === false) {
+      const accountStatus = await fetchAccountStatus(data.session.user.id);
+      if (accountStatus.blocked) {
         try {
           await supabase.auth.signOut({ scope: 'local' });
         } catch {
           // Clear the tab-local session below even when logout fails.
         }
         clearBrowserSession();
-        setError(INACTIVE_MESSAGE);
+        setError(accountStatus.message || INACTIVE_MESSAGE);
         return;
       }
     } catch (err) {

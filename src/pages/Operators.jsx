@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ShieldCheck, UserCog, UserX, UserCheck, RefreshCw, Trash2, UserPlus } from 'lucide-react';
+import { Search, ShieldCheck, UserCog, UserX, UserCheck, RefreshCw, Trash2, UserPlus, Pencil, Check, X, Headphones } from 'lucide-react';
 import { useOperators } from '../hooks/useOperators';
 import { useRole, getRoleLabel, isSuperadmin } from '../lib/roles';
 import { Modal } from '../components/common/Modal';
-import { ThemeToggle, LanguageToggle } from '../components/common/ThemeToggle';
+import { NotificationBell } from '../components/dashboard/NotificationBell';
+import { ThemeToggle, LanguageToggle, ProfileButton } from '../components/common/ThemeToggle';
 import { useLanguage } from '../components/common/language';
 import toast, { Toaster } from 'react-hot-toast';
 import './Operators.css';
@@ -27,10 +28,11 @@ function CreateAccountForm({ onClose, onCreate, submitting }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('admin');
+  const [domicile, setDomicile] = useState('');
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    await onCreate(email.trim(), password, role);
+    await onCreate(email.trim(), password, role, domicile.trim());
     onClose();
   };
 
@@ -38,7 +40,7 @@ function CreateAccountForm({ onClose, onCreate, submitting }) {
     <Modal isOpen onClose={onClose} title="Tambah Akun Baru">
       <form className="create-account-form" onSubmit={handleSubmit}>
         <p className="create-account-desc">
-          Daftarkan akun operator atau pengguna baru beserta peran aksesnya.
+          Daftarkan akun operator atau pengguna baru beserta peran akses dan domisili penanganannya.
         </p>
 
         <label htmlFor="new-account-email">Alamat email</label>
@@ -80,6 +82,16 @@ function CreateAccountForm({ onClose, onCreate, submitting }) {
           ))}
         </select>
 
+        <label htmlFor="new-account-domicile">Domisili wilayah tugas</label>
+        <input
+          id="new-account-domicile"
+          type="text"
+          placeholder="Contoh: Jakarta, Bandung, Surabaya"
+          maxLength={100}
+          value={domicile}
+          onChange={(event) => setDomicile(event.target.value)}
+        />
+
         <div className="create-account-actions">
           <button type="button" className="secondary-btn" onClick={onClose} disabled={submitting}>
             Batal
@@ -106,6 +118,7 @@ export function Operators() {
     setActive,
     deleteOperator,
     createOperator,
+    updateDomicile,
   } = useOperators();
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
@@ -113,6 +126,9 @@ export function Operators() {
   const [actingId, setActingId] = useState(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editingDomicileId, setEditingDomicileId] = useState(null);
+  const [editingDomicileValue, setEditingDomicileValue] = useState('');
+  const [savingDomicile, setSavingDomicile] = useState(false);
 
   const allowed = isSuperadmin(role);
 
@@ -200,16 +216,39 @@ export function Operators() {
     }
   };
 
-  const handleCreate = async (newEmail, newPassword, newRole) => {
+  const handleCreate = async (newEmail, newPassword, newRole, newDomicile) => {
     setCreating(true);
     try {
-      await createOperator(newEmail, newPassword, newRole);
+      await createOperator(newEmail, newPassword, newRole, newDomicile);
       toast.success(`Akun ${newEmail} berhasil didaftarkan.`);
     } catch (err) {
       toast.error(err.message || 'Pendaftaran akun gagal diproses.');
       throw err;
     } finally {
       setCreating(false);
+    }
+  };
+
+  const startEditDomicile = (op) => {
+    setEditingDomicileId(op.id);
+    setEditingDomicileValue(op.domicile || '');
+  };
+
+  const cancelEditDomicile = () => {
+    setEditingDomicileId(null);
+    setEditingDomicileValue('');
+  };
+
+  const handleSaveDomicile = async (op) => {
+    setSavingDomicile(true);
+    try {
+      await updateDomicile(op.id, editingDomicileValue);
+      toast.success(`Domisili akun ${op.email} berhasil diperbarui.`);
+      setEditingDomicileId(null);
+    } catch (err) {
+      toast.error(err.message || 'Gagal memperbarui domisili.');
+    } finally {
+      setSavingDomicile(false);
     }
   };
 
@@ -235,10 +274,15 @@ export function Operators() {
           <p className="operators-sub">{t('operatorsSubtitle')}</p>
         </div>
         <div className="operators-header-actions">
+          <button className="secondary-btn" onClick={() => navigate('/support')}>
+            <Headphones size={16} />
+            <span>Pusat Bantuan</span>
+          </button>
           <button className="primary-btn" onClick={() => setCreateModalOpen(true)}>
             <UserPlus size={16} />
             <span>{t('addAccount')}</span>
           </button>
+          <NotificationBell />
           <button
             className="header-icon-btn refresh-icon-btn"
             onClick={fetchOperators}
@@ -249,6 +293,7 @@ export function Operators() {
             <RefreshCw size={16} className={loading ? 'spinning' : ''} />
           </button>
           <div className="header-controls">
+            <ProfileButton />
             <LanguageToggle />
             <ThemeToggle />
           </div>
@@ -300,6 +345,9 @@ export function Operators() {
               <tr>
                 <th>{t('emailCol')}</th>
                 <th>{t('roleCol')}</th>
+                <th>Domisili</th>
+                <th>Rating pengguna</th>
+                <th>Kepatuhan SLA</th>
                 <th>{t('statusCol')}</th>
                 <th>{t('createdCol')}</th>
                 <th>{t('actionCol')}</th>
@@ -317,7 +365,64 @@ export function Operators() {
                         {ROLE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                       </select>
                     </td>
-                    <td><span className={'status-pill ' + (op.is_active ? 'on' : 'off')}>{op.is_active ? t('activeStatus') : t('inactiveStatus')}</span></td>
+                    <td>
+                      {editingDomicileId === op.id ? (
+                        <div className="op-domicile-edit">
+                          <input
+                            type="text"
+                            className="op-domicile-input"
+                            placeholder="Nama domisili"
+                            value={editingDomicileValue}
+                            maxLength={100}
+                            onChange={(e) => setEditingDomicileValue(e.target.value)}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveDomicile(op);
+                              if (e.key === 'Escape') cancelEditDomicile();
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="domicile-btn save-btn"
+                            disabled={savingDomicile}
+                            onClick={() => handleSaveDomicile(op)}
+                            title="Simpan domisili"
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="domicile-btn cancel-btn"
+                            disabled={savingDomicile}
+                            onClick={cancelEditDomicile}
+                            title="Batal"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="op-domicile-cell">
+                          <span className="op-domicile">{op.domicile || '—'}</span>
+                          <button
+                            type="button"
+                            className="domicile-edit-trigger"
+                            onClick={() => startEditDomicile(op)}
+                            title="Ubah domisili"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td>{op.rating_average == null ? '★ 5.0 (baru)' : `★ ${Number(op.rating_average).toFixed(1)} (${op.rating_count || 0})`}</td>
+                    <td>{op.role === 'admin' ? `${op.sla_score}/100` : '—'}</td>
+                    <td>
+                      {op.is_banned
+                        ? <span className="status-pill off">Diblokir permanen</span>
+                        : op.suspended_until && new Date(op.suspended_until) > new Date()
+                          ? <span className="status-pill off">Ditangguhkan s.d. {formatDate(op.suspended_until)}</span>
+                          : <span className={'status-pill ' + (op.is_active ? 'on' : 'off')}>{op.is_active ? t('activeStatus') : t('inactiveStatus')}</span>}
+                    </td>
                     <td className="op-date">{formatDate(op.created_at)}</td>
                     <td>
                       <div className="op-actions">

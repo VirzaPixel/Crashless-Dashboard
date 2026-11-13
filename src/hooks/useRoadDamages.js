@@ -24,7 +24,21 @@ export function useRoadDamages() {
   const listRequestRef = useRef(0);
   const detailRequestRef = useRef(0);
 
+  const cancelOverdueReports = useCallback(async () => {
+    try {
+      await supabase.rpc('crashless_cancel_overdue_reports');
+    } catch (err) {
+      console.warn('Auto-cancel laporan lewat tenggat gagal dijalankan:', err?.message || err);
+    }
+    try {
+      await supabase.rpc('crashless_auto_assign_pending_reports');
+    } catch (err) {
+      console.warn('Auto-assign laporan pending gagal dijalankan:', err?.message || err);
+    }
+  }, []);
+
   const fetchDamages = useCallback(async () => {
+    await cancelOverdueReports();
     const requestId = ++listRequestRef.current;
     setLoading(true);
     setError(null);
@@ -35,8 +49,20 @@ export function useRoadDamages() {
         .order('created_at', { ascending: false });
 
       if (fetchError) throw getWorkflowError(fetchError);
+      const operatorIds = [...new Set((data || []).map((row) => row.assigned_operator_id).filter(Boolean))];
+      const reporterIds = [...new Set((data || []).map((row) => row.user_id).filter(Boolean))];
+      const profileIds = [...new Set([...operatorIds, ...reporterIds])];
+      const profiles = profileIds.length
+        ? await supabase.from('user_profiles').select('id,email').in('id', profileIds)
+        : { data: [], error: null };
+      if (profiles.error) throw profiles.error;
+      const profileEmails = new Map((profiles.data || []).map((profile) => [profile.id, profile.email]));
       if (requestId === listRequestRef.current) {
-        setDamages((data || []).map(normalizeRoadDamage));
+        setDamages((data || []).map((row) => normalizeRoadDamage({
+          ...row,
+          assigned_operator_name: profileEmails.get(row.assigned_operator_id) || null,
+          reporter_email: profileEmails.get(row.user_id) || null,
+        })));
       }
     } catch (err) {
       const normalizedError = getWorkflowError(err);
@@ -49,9 +75,10 @@ export function useRoadDamages() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [cancelOverdueReports]);
 
   const fetchDamageById = useCallback(async (id) => {
+    await cancelOverdueReports();
     const requestId = ++detailRequestRef.current;
     setLoading(true);
     setError(null);
@@ -63,7 +90,18 @@ export function useRoadDamages() {
         .maybeSingle();
 
       if (fetchError) throw getWorkflowError(fetchError);
-      return data ? normalizeRoadDamage(data) : null;
+      if (!data) return null;
+      const relatedIds = [...new Set([data.assigned_operator_id, data.user_id].filter(Boolean))];
+      const profiles = relatedIds.length
+        ? await supabase.from('user_profiles').select('id,email').in('id', relatedIds)
+        : { data: [], error: null };
+      if (profiles.error) throw profiles.error;
+      const profileEmails = new Map((profiles.data || []).map((profile) => [profile.id, profile.email]));
+      return normalizeRoadDamage({
+        ...data,
+        assigned_operator_name: profileEmails.get(data.assigned_operator_id) ?? null,
+        reporter_email: profileEmails.get(data.user_id) ?? null,
+      });
     } catch (err) {
       const normalizedError = getWorkflowError(err);
       if (requestId === detailRequestRef.current) {
@@ -76,6 +114,155 @@ export function useRoadDamages() {
         setLoading(false);
       }
     }
+  }, [cancelOverdueReports]);
+
+  const claimDamage = useCallback(async (id) => {
+    const { data, error: claimError } = await supabase.rpc('crashless_claim_damage', { p_damage_id: id });
+    if (claimError) throw claimError;
+    return normalizeRoadDamage(data);
+  }, []);
+
+  const fetchOperationalData = useCallback(async (id) => {
+    const [eventsResult, conversationResult, reviewsResult, scoresResult, extensionsResult] = await Promise.all([
+      supabase.from('damage_status_events').select('id,actor_id,from_status,to_status,note,audience,event_type,created_at').eq('damage_id', id).order('created_at'),
+      supabase.from('report_conversations').select('id').eq('damage_id', id).maybeSingle(),
+      supabase.from('damage_reviews').select('stars,comment,operator_id,created_at').eq('damage_id', id).maybeSingle(),
+      supabase.from('operator_score_events').select('id,score_delta,event_type,reason,dispute_status,dispute_reason,resolution_note,created_at').eq('damage_id', id).order('created_at', { ascending: false }),
+      supabase.from('due_date_extensions').select('id,damage_id,old_due_at,requested_due_at,reason,requested_by,requested_at,status,decided_by,decided_at,decision_note').eq('damage_id', id).order('requested_at', { ascending: false }),
+    ]);
+    const operatorIds = [...new Set([
+      ...(eventsResult.data || []).map((event) => event.actor_id),
+      reviewsResult.data?.operator_id,
+      ...(extensionsResult.data || []).flatMap((extension) => [extension.requested_by, extension.decided_by]),
+    ].filter(Boolean))];
+    const profilesResult = operatorIds.length
+      ? await supabase.from('user_profiles').select('id,email').in('id', operatorIds)
+      : { data: [], error: null };
+    const failure = [eventsResult, conversationResult, reviewsResult, scoresResult, extensionsResult, profilesResult].find((result) => result.error);
+    if (failure) throw failure.error;
+    const names = new Map((profilesResult.data || []).map((profile) => [profile.id, profile.email]));
+    return {
+      events: (eventsResult.data || []).map((event) => ({ ...event, actor_name: names.get(event.actor_id) || 'Operator' })),
+      conversation: conversationResult.data,
+      review: reviewsResult.data ? { ...reviewsResult.data, operator_name: names.get(reviewsResult.data.operator_id) || 'Operator' } : null,
+      scoreEvents: scoresResult.data ?? [],
+      extensions: (extensionsResult.data || []).map((extension) => ({
+        ...extension,
+        requested_by_name: names.get(extension.requested_by) || 'Operator',
+        decided_by_name: names.get(extension.decided_by) || null,
+      })),
+      operatorNames: names,
+    };
+  }, []);
+
+  const fetchMessages = useCallback(async (damageId) => {
+    const { data, error: messagesError } = await supabase.rpc('crashless_get_report_messages', {
+      p_damage_id: damageId,
+    });
+    if (messagesError) throw messagesError;
+    return data || [];
+  }, []);
+
+  const markConversationRead = useCallback(async (conversationId) => {
+    const { error } = await supabase.rpc('crashless_mark_conversation_read', { p_conversation_id: conversationId });
+    if (error) throw error;
+  }, []);
+
+  const sendMessage = useCallback(async (damageId, body) => {
+    const { error } = await supabase.rpc('crashless_send_report_message', {
+      p_damage_id: damageId,
+      p_body: body.trim(),
+    });
+    if (error) throw error;
+  }, []);
+
+  const ensureConversation = useCallback(async (damageId) => {
+    const { data, error } = await supabase.rpc('crashless_ensure_conversation', { p_damage_id: damageId });
+    if (error) throw error;
+    return { id: data };
+  }, []);
+
+  const addProgressNote = useCallback(async (damageId, note, audience = 'user') => {
+    const { error } = await supabase.rpc('crashless_add_progress', {
+      p_damage_id: damageId,
+      p_note: note.trim(),
+      p_audience: audience,
+      p_to_status: null,
+    });
+    if (error) throw error;
+  }, []);
+
+  const submitReview = useCallback(async (damageId, stars, comment) => {
+    const { error } = await supabase.rpc('crashless_submit_review', {
+      p_damage_id: damageId,
+      p_stars: stars,
+      p_comment: comment.trim() || null,
+    });
+    if (error) throw error;
+  }, []);
+
+  const rejectDamage = useCallback(async (damageId, category, reason, resubmissionAllowed = true) => {
+    const { data, error } = await supabase.rpc('crashless_verify_repair', {
+      p_damage_id: damageId,
+      p_approved: false,
+      p_category: category,
+      p_reason: reason.trim(),
+      p_resubmission_allowed: resubmissionAllowed,
+    });
+    if (error) throw error;
+    return normalizeRoadDamage(data);
+  }, []);
+
+  const rejectReport = useCallback(async (damageId, category, reason, resubmissionAllowed = true) => {
+    const { data, error } = await supabase.rpc('crashless_reject_report', {
+      p_damage_id: damageId,
+      p_category: category,
+      p_reason: reason.trim(),
+      p_resubmission_allowed: resubmissionAllowed,
+    });
+    if (error) throw error;
+    return normalizeRoadDamage(data);
+  }, []);
+
+  const reassignDamage = useCallback(async (damageId, operatorId, reason) => {
+    const { error } = await supabase.rpc('crashless_reassign_damage', { p_damage_id: damageId, p_operator_id: operatorId, p_reason: reason.trim() });
+    if (error) throw error;
+  }, []);
+
+  const requestDueExtension = useCallback(async (damageId, newDueAt, reason) => {
+    const { data, error } = await supabase.rpc('crashless_request_due_extension', {
+      p_damage_id: damageId,
+      p_new_due_at: newDueAt,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
+    return data;
+  }, []);
+
+  const decideDueExtension = useCallback(async (extensionId, approve, note) => {
+    const { error } = await supabase.rpc('crashless_decide_due_extension', {
+      p_extension_id: extensionId,
+      p_approve: approve,
+      p_note: note?.trim() || null,
+    });
+    if (error) throw error;
+  }, []);
+
+  const disputeScoreEvent = useCallback(async (eventId, reason) => {
+    const { error } = await supabase.rpc('crashless_dispute_score_event', {
+      p_event_id: eventId,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
+  }, []);
+
+  const resolveScoreEvent = useCallback(async (eventId, reverse, note) => {
+    const { error } = await supabase.rpc('crashless_resolve_score_event', {
+      p_event_id: eventId,
+      p_reverse: reverse,
+      p_note: note.trim(),
+    });
+    if (error) throw error;
   }, []);
 
   const uploadPhoto = useCallback(async (file, onStage) => {
@@ -210,19 +397,16 @@ export function useRoadDamages() {
         throw new Error('Gagal mengunggah satu atau lebih foto dokumentasi.');
       }
 
-      return await updateWorkflow(
-        id,
-        {
-          workflow_status: 'fixed',
-          status: 'fixed',
-          fixed_at: fixedAt || new Date().toISOString(),
-          fixed_photo_1: photoUrls[0],
-          fixed_photo_2: photoUrls[1],
-          fixed_photo_3: photoUrls[2],
-          repair_notes: repairNotes?.trim() || null,
-        },
-        'in_progress',
-      );
+      const { data, error } = await supabase.rpc('crashless_mark_fixed', {
+        p_damage_id: id,
+        p_photo_1: photoUrls[0],
+        p_photo_2: photoUrls[1],
+        p_photo_3: photoUrls[2],
+        p_repair_notes: repairNotes?.trim() || null,
+        p_fixed_at: fixedAt || new Date().toISOString(),
+      });
+      if (error) throw error;
+      return normalizeRoadDamage(data);
     } catch (err) {
       const normalizedError = getWorkflowError(err);
       setError(normalizedError.message);
@@ -231,27 +415,25 @@ export function useRoadDamages() {
     } finally {
       setLoading(false);
     }
-  }, [updateWorkflow, uploadPhoto]);
+  }, [uploadPhoto]);
 
-  const verifyRepair = useCallback(async (id, { approved, verificationNotes }) => {
+  const verifyRepair = useCallback(async (id, { approved, verificationNotes, category, resubmissionAllowed = true }) => {
     setLoading(true);
     setError(null);
     try {
-      if (!approved && !verificationNotes?.trim()) {
-        throw new Error('Catatan wajib diisi saat verifikasi ditolak.');
+      if (!approved && (!category || !verificationNotes?.trim())) {
+        throw new Error('Kategori dan alasan wajib diisi saat menolak laporan.');
       }
 
-      return await updateWorkflow(
-        id,
-        {
-          workflow_status: approved ? 'verified' : 'rejected',
-          status: approved ? 'fixed' : 'pending',
-          verification_notes: verificationNotes?.trim() || null,
-          verified_at: new Date().toISOString(),
-          verified_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-        },
-        'fixed',
-      );
+      const { data, error } = await supabase.rpc('crashless_verify_repair', {
+        p_damage_id: id,
+        p_approved: approved,
+        p_category: approved ? null : category,
+        p_reason: verificationNotes?.trim() || null,
+        p_resubmission_allowed: approved ? false : resubmissionAllowed,
+      });
+      if (error) throw error;
+      return normalizeRoadDamage(data);
     } catch (err) {
       const normalizedError = getWorkflowError(err);
       setError(normalizedError.message);
@@ -260,7 +442,7 @@ export function useRoadDamages() {
     } finally {
       setLoading(false);
     }
-  }, [updateWorkflow]);
+  }, []);
 
   return {
     damages,
@@ -268,8 +450,24 @@ export function useRoadDamages() {
     error,
     fetchDamages,
     fetchDamageById,
+    cancelOverdueReports,
     startRepair,
     markAsFixed,
     verifyRepair,
+    claimDamage,
+    fetchOperationalData,
+    fetchMessages,
+    sendMessage,
+    ensureConversation,
+    addProgressNote,
+    submitReview,
+    rejectDamage,
+    rejectReport,
+    reassignDamage,
+    requestDueExtension,
+    decideDueExtension,
+    disputeScoreEvent,
+    resolveScoreEvent,
+    markConversationRead,
   };
 }

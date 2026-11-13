@@ -86,6 +86,23 @@
   box-shadow: 0 0 0 3px var(--line);
 }
 
+.realtime-badge.polling .realtime-indicator {
+  background: var(--warning);
+  animation: realtime-poll-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes realtime-poll-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realtime-badge.polling .realtime-indicator {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 .refresh-icon-btn {
   color: var(--ink);
 }
@@ -291,6 +308,42 @@
 
 .filter-select:hover {
   border-color: var(--accent);
+}
+
+.filter-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  min-height: 39px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.74rem;
+  font-weight: 620;
+  white-space: nowrap;
+  transition: border-color 160ms ease;
+}
+
+.filter-date:hover {
+  border-color: var(--accent);
+}
+
+.filter-date input {
+  min-height: 30px;
+  padding: 2px 4px;
+  color: var(--muted-strong);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 0.76rem;
+  outline: 0;
+}
+
+.filter-date input::-webkit-calendar-picker-indicator {
+  filter: invert(0.75);
+  cursor: pointer;
 }
 
 .dashboard-main {
